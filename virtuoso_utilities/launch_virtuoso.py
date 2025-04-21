@@ -14,6 +14,26 @@ import sys
 import time
 from typing import List, Tuple
 
+import psutil
+
+
+def bytes_to_docker_mem_str(num_bytes: int) -> str:
+    """
+    Convert a number of bytes to a Docker memory string (e.g., "85g", "512m").
+    Tries to find the largest unit (G, M, K) without losing precision for integers.
+    """
+    if num_bytes % (1024**3) == 0:
+        return f"{num_bytes // (1024**3)}g"
+    elif num_bytes % (1024**2) == 0:
+        return f"{num_bytes // (1024**2)}m"
+    elif num_bytes % 1024 == 0:
+         return f"{num_bytes // 1024}k"
+    else:
+        # Fallback for non-exact multiples (shouldn't happen often with RAM)
+        # Prefer GiB for consistency
+        gb_val = num_bytes / (1024**3)
+        return f"{int(gb_val)}g"
+
 
 def parse_memory_value(memory_str: str) -> int:
     """
@@ -159,6 +179,30 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     
+    # --- Calculate default memory based on host RAM (2/3) ---
+    default_memory_str = "2g" # Fallback default
+    if psutil:
+        try:
+            total_host_ram = psutil.virtual_memory().total
+            # Calculate 2/3 of total RAM in bytes
+            default_mem_bytes = int(total_host_ram * (2/3))
+            # Ensure at least 1GB is allocated as a minimum default
+            min_default_bytes = 1 * 1024 * 1024 * 1024
+            if default_mem_bytes < min_default_bytes:
+                default_mem_bytes = min_default_bytes
+
+            default_memory_str = bytes_to_docker_mem_str(default_mem_bytes)
+            print(f"Info: Detected {total_host_ram / (1024**3):.1f} GiB total host RAM. "
+                  f"Setting default container memory limit to {default_memory_str} (approx. 2/3). "
+                  f"Use --memory to override.")
+        except Exception as e:
+            print(f"Warning: Could not auto-detect host RAM using psutil: {e}. "
+                  f"Falling back to default memory limit '{default_memory_str}'.", file=sys.stderr)
+    else:
+         print(f"Warning: psutil not found. Cannot auto-detect host RAM. "
+               f"Falling back to default memory limit '{default_memory_str}'. "
+               f"Install psutil for automatic calculation.", file=sys.stderr)
+
     parser.add_argument(
         "--name", 
         default="virtuoso",
@@ -209,11 +253,11 @@ def parse_arguments() -> argparse.Namespace:
              "Can be specified multiple times."
     )
     
-    default_memory = "2g"
     parser.add_argument(
         "--memory", 
-        default=default_memory,
-        help="Memory limit for the container (e.g., 2g, 4g)"
+        default=default_memory_str,
+        help="Memory limit for the container (e.g., 2g, 4g). "
+             f"Defaults to approx. 2/3 of host RAM if psutil is installed, otherwise '{default_memory_str}'."
     )
     parser.add_argument(
         "--cpu-limit", 
@@ -234,9 +278,9 @@ def parse_arguments() -> argparse.Namespace:
         help="ResultSet maximum number of rows"
     )
     
-    args, _ = parser.parse_known_args()
+    args_temp, _ = parser.parse_known_args()
     
-    optimal_number_of_buffers, optimal_max_dirty_buffers = get_optimal_buffer_values(args.memory)
+    optimal_number_of_buffers, optimal_max_dirty_buffers = get_optimal_buffer_values(args_temp.memory)
     
     parser.add_argument(
         "--max-dirty-buffers", 

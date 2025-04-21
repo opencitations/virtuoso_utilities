@@ -56,7 +56,6 @@ poetry run python virtuoso_utilities/launch_virtuoso.py \
     --http-port 8891 \
     --isql-port 1112 \
     --data-dir ./my-virtuoso-data \
-    --memory 4g \
     --dba-password mySafePassword \
     --mount-volume /path/on/host/with/rdf:/rdf-data-in-container \
     --detach \
@@ -75,30 +74,32 @@ Use `poetry run python virtuoso_utilities/launch_virtuoso.py --help` to see all 
 *   `--data-dir`: Host directory to mount as Virtuoso data directory (Default: `./virtuoso-data`).
 *   `--container-data-dir`: Path inside container where data will be stored (Default: `/opt/virtuoso-opensource/database`).
 *   `--mount-volume HOST_PATH:CONTAINER_PATH`: Mount an additional host directory into the container. Format: `/path/on/host:/path/in/container`. Can be specified multiple times. Useful for making data files (e.g., RDF) available to the bulk loader.
-*   `--memory`: Memory limit for the container (Default: `2g`).
+*   `--memory`: Memory limit for the container (e.g., `2g`, `4g`). It defaults to approx. 2/3 of host RAM. You can manually override this calculated default.
 *   `--cpu-limit`: CPU limit for the container, 0 means no limit (Default: `0`).
 *   `--dba-password`: Password for the Virtuoso dba user (Default: `dba`).
 *   `--max-rows`: ResultSet maximum number of rows (Default: `100000`).
-*   `--max-dirty-buffers`: Maximum dirty buffers before checkpoint (Auto-calculated based on available system memory).
-*   `--number-of-buffers`: Number of buffers (Auto-calculated based on available system memory).
+*   `--max-dirty-buffers`: Maximum dirty buffers before checkpoint. Auto-calculated based on the final `--memory` value (either the default or the one you provided).
+*   `--number-of-buffers`: Number of buffers. Auto-calculated based on the final `--memory` value (either the default or the one you provided).
 *   `--wait-ready`: Wait until Virtuoso is ready to accept connections.
 *   `--detach`: Run container in detached mode.
 *   `--force-remove`: Force removal of existing container with the same name.
 
-**Memory-Based Configuration:**
+#### Memory-Based Configuration
 
 > **Important Note on Docker Resource Limits:**
 > By default, Docker Desktop runs with limited resources, especially RAM. Before allocating significant memory to the Virtuoso container using the `--memory` flag (e.g., more than a few gigabytes), ensure that Docker itself is configured to have access to at least that amount of RAM. You can usually adjust Docker's resource limits in its settings/preferences.
 > If the Virtuoso container requests more memory than Docker can provide, the container may fail to start or crash unexpectedly (often with exit code 137).
 
-The script automatically calculates optimal values for `--number-of-buffers` and `--max-dirty-buffers` based on the specified container memory limit (`--memory` parameter). It uses the general formula recommended in the [OpenLink Virtuoso Performance Tuning documentation](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692):
+The script aims to simplify memory configuration based on Virtuoso best practices:
 
-```
-NumberOfBuffers = (MemoryInBytes * 0.66) / 8000
-MaxDirtyBuffers = NumberOfBuffers * 0.75
-```
+1.  **Container Memory Limit (`--memory`):** The script automatically detects your host's total RAM and sets the *default* value for `--memory` to approximately 2/3 of that total (e.g., if you have 128GiB RAM, the default might become `85g`). This follows the Virtuoso guideline of allocating a significant portion of system RAM to the database process when dealing with large datasets. You can always explicitly set `--memory` to any value you prefer, overriding the automatic calculation.
 
-This calculation aims to provide good default performance based on the allocated memory. You can still manually override these calculated values using the `--number-of-buffers` and `--max-dirty-buffers` arguments if needed for specific tuning requirements.
+2.  **Virtuoso Internal Buffers (`--number-of-buffers`, `--max-dirty-buffers`):** Based on the *final* memory limit set for the container (whether automatically calculated or manually specified via `--memory`), the script automatically calculates optimal values for Virtuoso's internal `NumberOfBuffers` and `MaxDirtyBuffers`. It uses the formula recommended in the [OpenLink Virtuoso Performance Tuning documentation](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692):
+    ```
+    NumberOfBuffers = (ContainerMemoryLimitInBytes * 0.66) / 8000
+    MaxDirtyBuffers = NumberOfBuffers * 0.75
+    ```
+    This ensures Virtuoso's internal memory usage is tuned relative to the memory allocated to its container. You can still manually override these calculated values using the `--number-of-buffers` and `--max-dirty-buffers` arguments if needed for specific tuning requirements.
 
 For more detailed information on Virtuoso performance tuning, refer to the [official OpenLink documentation](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692).
 
