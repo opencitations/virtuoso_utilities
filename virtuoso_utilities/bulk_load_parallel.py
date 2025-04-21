@@ -4,146 +4,147 @@
 """
 Performs parallel bulk loading of RDF files into OpenLink Virtuoso.
 
-Finds RDF files in a specified directory (either by pattern or by common RDF extensions)
-and uses multiprocessing to load them in parallel into a Virtuoso database
-using the 'isql' command-line utility.
+Uses the Virtuoso bulk loading procedure (ld_dir/ld_dir_all, rdf_loader_run)
+to register files from a specified directory and load them in parallel
+using multiple 'isql' command-line utility instances.
+
+IMPORTANT:
+- The data directory specified ('-d' or '--data-directory') MUST be
+  accessible by the Virtuoso server process itself.
+- This directory path MUST be listed in the 'DirsAllowed' parameter
+  within the Virtuoso INI file (e.g., virtuoso.ini).
+- If using Docker, the '--docker-data-mount-path' MUST be the path
+  INSIDE the container where the host's data directory is mounted,
+  and this container path must be in the container's 'DirsAllowed'.
 """
 
 import argparse
-import glob
 import os
 import subprocess
 import sys
-from functools import partial
-from multiprocessing import Pool, cpu_count
-
-from tqdm import tqdm
+import time
+from multiprocessing import cpu_count
 
 DEFAULT_VIRTUOSO_HOST = "localhost"
 DEFAULT_VIRTUOSO_PORT = 1111
 DEFAULT_VIRTUOSO_USER = "dba"
-DEFAULT_NUM_PROCESSES = cpu_count()
-DEFAULT_GRAPH_URI = "http://localhost:8890/DAV"
+DEFAULT_NUM_PROCESSES = max(1, int(cpu_count() / 2.5))
+DEFAULT_GRAPH_URI = "http://localhost:8890/DAV" # Default graph if .graph files are not used
+DEFAULT_FILE_PATTERN = '*.*' # Default pattern for ld_dir/ld_dir_all
 DEFAULT_ISQL_PATH_HOST = "isql"
-DEFAULT_ISQL_PATH_DOCKER = "isql"
+DEFAULT_ISQL_PATH_DOCKER = "isql" # Often '/opt/virtuoso-opensource/bin/isql' in containers
 DEFAULT_DOCKER_PATH = "docker"
+DEFAULT_CHECKPOINT_INTERVAL = 60 # Default Virtuoso checkpoint interval (seconds)
+DEFAULT_SCHEDULER_INTERVAL = 10 # Default Virtuoso scheduler interval (seconds)
 
-COMMON_RDF_EXTENSIONS = ('.ttl', '.rdf', '.owl', '.nq', '.trig', '.trix', '.xml')
-
-def load_file_virtuoso(
-    file_path,
-    host, port, user, password, graph_uri,
-    host_data_dir,
-    docker_container=None,
-    docker_data_mount_path=None,
-    docker_isql_path=DEFAULT_ISQL_PATH_DOCKER,
-    docker_path=DEFAULT_DOCKER_PATH,
-    host_isql_path=DEFAULT_ISQL_PATH_HOST
-):
+def run_isql_command(
+    sql_command: str,
+    args: argparse.Namespace,
+    capture: bool = False
+) -> tuple[bool, str, str]:
     """
-    Loads a single RDF file into Virtuoso using the isql command,
-    potentially executing it inside a Docker container.
+    Executes a SQL command using the 'isql' utility, either directly
+    or via 'docker exec'.
 
     Args:
-        file_path (str): The absolute path to the RDF file **on the host**.
-        host (str): Virtuoso server host.
-        port (int): Virtuoso server port.
-        user (str): Virtuoso username.
-        password (str): Virtuoso password.
-        graph_uri (str): Target graph URI.
-        host_data_dir (str): The data directory path **on the host** as provided via -d.
-        docker_container (str | None): Name or ID of the Docker container, if used.
-        docker_data_mount_path (str | None): Path where host_data_dir is mounted **inside the container**.
-        docker_isql_path (str): Path to 'isql' executable **inside the container**.
-        docker_path (str): Path to 'docker' executable **on the host**.
-        host_isql_path (str): Path to 'isql' executable **on the host**.
+        sql_command (str): The SQL command or procedure call to execute.
+        args (argparse.Namespace): Parsed command-line arguments containing
+                                   connection details and paths.
+        capture (bool): If True, capture stdout and stderr.
 
     Returns:
-        tuple: (file_path, success_status, message)
-               success_status is True if loading succeeded, False otherwise.
-               message contains stdout or stderr.
+        tuple: (success_status, stdout, stderr)
+               success_status is True if the command ran without error (exit code 0).
+               stdout and stderr contain the respective outputs.
     """
+    base_command = []
+    effective_isql_path_for_error = ""
 
-    file_extension = os.path.splitext(file_path)[1].lower()
-    load_command = ""
-    container_file_path = None 
-
-    if docker_container:
-        if not docker_data_mount_path:
-            return file_path, False, "Error: --docker-data-mount-path is required with --docker-container"
-        try:
-            relative_path = os.path.relpath(file_path, os.path.abspath(host_data_dir))
-            container_file_path = os.path.join(docker_data_mount_path, relative_path).replace(os.sep, '/')
-        except ValueError as e:
-            return file_path, False, f"Error calculating container path for {file_path} relative to {host_data_dir}: {e}"
-        path_in_virtuoso_cmd = container_file_path
-    else:
-        path_in_virtuoso_cmd = file_path
-
-    if file_extension == ".ttl":
-        load_command = f"DB.DBA.TTLP(file_to_string_output('{path_in_virtuoso_cmd}'), '', '{graph_uri}');"
-    elif file_extension in [".rdf", ".xml", ".owl"]:
-        load_command = f"DB.DBA.RDF_LOAD_RDFXML(file_to_string_output('{path_in_virtuoso_cmd}'), '', '{graph_uri}');"
-    elif file_extension in [".nq", ".trig", ".trix"]:
-        load_command = f"DB.DBA.TTLP(file_to_string_output('{path_in_virtuoso_cmd}'), '', '');"
-    else:
-        return file_path, False, f"Unsupported file extension: {file_extension}"
-
-    virtuoso_procedure = f"log_enable(2); {load_command}"
-
-    command = []
-    if docker_container:
-        command = [
-            docker_path,
+    if args.docker_container:
+        base_command = [
+            args.docker_path,
             'exec',
-            docker_container,
-            docker_isql_path,
-            f"{host}:{port}",
-            user,
-            password,
-            f"exec={virtuoso_procedure}"
+            args.docker_container,
+            args.docker_isql_path,
+            f"{args.host}:{args.port}",
+            args.user,
+            args.password,
+            f"exec={sql_command}"
         ]
-        effective_isql_path_for_error = f"'{docker_isql_path}' inside container '{docker_container}'"
+        effective_isql_path_for_error = f"'{args.docker_isql_path}' inside container '{args.docker_container}'"
     else:
-        command = [
-            host_isql_path,
-            f"{host}:{port}",
-            user,
-            password,
-            f"exec={virtuoso_procedure}"
+        base_command = [
+            args.isql_path,
+            f"{args.host}:{args.port}",
+            args.user,
+            args.password,
+            f"exec={sql_command}"
         ]
-        effective_isql_path_for_error = f"'{host_isql_path}' on host"
+        effective_isql_path_for_error = f"'{args.isql_path}' on host"
 
     try:
-        process = subprocess.run(command, capture_output=True, text=True, check=True, encoding='utf-8')
-        return file_path, True, process.stdout.strip()
+        process = subprocess.run(
+            base_command,
+            capture_output=capture,
+            text=True,
+            check=False, # Check exit code manually
+            encoding='utf-8'
+        )
+        stdout = process.stdout.strip() if process.stdout else ""
+        stderr = process.stderr.strip() if process.stderr else ""
+
+        if process.returncode != 0:
+            print(f"Error executing ISQL command.", file=sys.stderr)
+            print(f"Command: {' '.join(base_command)}", file=sys.stderr)
+            print(f"Return Code: {process.returncode}", file=sys.stderr)
+            if stderr:
+                print(f"Stderr: {stderr}", file=sys.stderr)
+            if stdout:
+                print(f"Stdout: {stdout}", file=sys.stderr) # Sometimes errors appear in stdout
+            return False, stdout, stderr
+        return True, stdout, stderr
     except FileNotFoundError:
-        if docker_container:
-            print(f"Error: '{docker_path}' command not found or failed to execute. Make sure Docker is installed and running.", file=sys.stderr)
+        executable = args.docker_path if args.docker_container else args.isql_path
+        print(f"Error: Command '{executable}' not found.", file=sys.stderr)
+        if args.docker_container:
+            print(f"Make sure '{args.docker_path}' is installed and in your PATH, and the container is running.", file=sys.stderr)
         else:
-            print(f"Error: {effective_isql_path_for_error} command not found. Make sure client tools are installed and in your PATH.", file=sys.stderr)
-        sys.exit(1)
-    except subprocess.CalledProcessError as e:
-        error_message = f"Error loading {os.path.basename(file_path)}."
-        error_message += f"\nCommand: {' '.join(command)}"
-        error_message += f"\nReturn Code: {e.returncode}"
-        error_message += f"\nStderr: {e.stderr.strip()}"
-        error_message += f"\nStdout: {e.stdout.strip()}"
-        print(error_message, file=sys.stderr)
-        return file_path, False, error_message
+            print(f"Make sure Virtuoso client tools (containing {effective_isql_path_for_error}) are installed and in your PATH.", file=sys.stderr)
+        return False, "", f"Executable not found: {executable}"
     except Exception as e:
-        error_message = f"An unexpected error occurred loading {os.path.basename(file_path)}: {e}"
-        print(error_message, file=sys.stderr)
-        return file_path, False, error_message
+        print(f"An unexpected error occurred running ISQL: {e}", file=sys.stderr)
+        print(f"Command: {' '.join(base_command)}", file=sys.stderr)
+        return False, "", str(e)
+
 
 def main():
     """
-    Main function to parse arguments and orchestrate the parallel loading.
+    Main function to parse arguments and orchestrate the parallel bulk loading.
     """
-    parser = argparse.ArgumentParser(description="Parallel RDF bulk loader for OpenLink Virtuoso.")
+    parser = argparse.ArgumentParser(
+        description="Parallel RDF bulk loader for OpenLink Virtuoso using the official bulk load procedure.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Example usage:
+  # Load all *.ttl files from /data/rdf into graph <http://example.org/graph>
+  python bulk_load_parallel.py -d /data/rdf -k mypassword -f '*.ttl' -g http://example.org/graph
 
+  # Load recursively from /data/rdf using 4 loader processes, via Docker
+  python bulk_load_parallel.py -d /host/path/to/data \
+    -k mypassword --recursive -n 4 \
+    --docker-container virtuoso_container \
+    --docker-data-mount-path /container/data/mount \
+    --docker-isql-path /opt/virtuoso/bin/isql
+
+IMPORTANT: The data directory (-d) must be accessible by the Virtuoso server process
+and listed in the 'DirsAllowed' setting in virtuoso.ini.
+For Docker, --docker-data-mount-path must be the path *inside* the container.
+"""
+    )
+
+    # Core arguments
     parser.add_argument("-d", "--data-directory", required=True,
-                        help="Directory containing the RDF files to load.")
+                        help="Directory containing the RDF files to load (MUST be accessible by Virtuoso server process and listed in DirsAllowed in virtuoso.ini).")
     parser.add_argument("-H", "--host", default=DEFAULT_VIRTUOSO_HOST,
                         help=f"Virtuoso server host (Default: {DEFAULT_VIRTUOSO_HOST}).")
     parser.add_argument("-P", "--port", type=int, default=DEFAULT_VIRTUOSO_PORT,
@@ -153,19 +154,28 @@ def main():
     parser.add_argument("-k", "--password", required=True,
                         help="Virtuoso password.")
     parser.add_argument("-n", "--num-processes", type=int, default=DEFAULT_NUM_PROCESSES,
-                        help=f"Number of parallel processes (Default: {DEFAULT_NUM_PROCESSES}).")
-    parser.add_argument("-f", "--file-pattern", default=None,
-                        help="File pattern to match (e.g., '*.nq', '*.rdf'). If not provided, automatically searches for common RDF extensions: " + ", ".join(COMMON_RDF_EXTENSIONS))
+                        help=f"Number of parallel rdf_loader_run() processes (Default: {DEFAULT_NUM_PROCESSES}, based on CPU cores / 2.5).")
+    parser.add_argument("-f", "--file-pattern", default=DEFAULT_FILE_PATTERN,
+                        help=f"File pattern for Virtuoso's ld_dir/ld_dir_all function (e.g., '*.nq', '*.ttl', Default: '{DEFAULT_FILE_PATTERN}').")
     parser.add_argument("-g", "--graph-uri", default=DEFAULT_GRAPH_URI,
-                        help=f"Target graph URI (Default: {DEFAULT_GRAPH_URI}).")
-    parser.add_argument("--isql-path", default="isql",
+                        help=f"Default target graph URI if no .graph file is present (Default: {DEFAULT_GRAPH_URI}). Quad files (.nq, .trig) will use their embedded graph names.")
+    parser.add_argument("--recursive", action='store_true',
+                        help="Load files recursively from subdirectories using ld_dir_all() instead of ld_dir().")
+    parser.add_argument("--log-enable", type=int, default=2, choices=[2, 3],
+                        help="log_enable mode for rdf_loader_run(). 2 (default) disables triggers for speed, 3 keeps triggers enabled (e.g., for replication).")
+    parser.add_argument("--isql-path", default=DEFAULT_ISQL_PATH_HOST,
                         help=f"Path to the Virtuoso 'isql' executable on the HOST system (Default: '{DEFAULT_ISQL_PATH_HOST}'). Used only if not in Docker mode.")
+    parser.add_argument("--checkpoint-interval", type=int, default=DEFAULT_CHECKPOINT_INTERVAL,
+                         help=f"Interval (seconds) to set for checkpointing after load (Default: {DEFAULT_CHECKPOINT_INTERVAL}).")
+    parser.add_argument("--scheduler-interval", type=int, default=DEFAULT_SCHEDULER_INTERVAL,
+                         help=f"Interval (seconds) to set for the scheduler after load (Default: {DEFAULT_SCHEDULER_INTERVAL}).")
 
+    # Docker arguments
     docker_group = parser.add_argument_group('Docker Options')
     docker_group.add_argument("--docker-container",
                         help="Name or ID of the running Virtuoso Docker container. If provided, 'isql' will be run via 'docker exec'.")
     docker_group.add_argument("--docker-data-mount-path",
-                        help="The absolute path INSIDE the container where the host data directory (from -d) is mounted. REQUIRED with --docker-container.")
+                        help="The absolute path INSIDE the container where the host data directory (from -d) is mounted. REQUIRED with --docker-container. This path must be in DirsAllowed in the container's virtuoso.ini.")
     docker_group.add_argument("--docker-isql-path", default=DEFAULT_ISQL_PATH_DOCKER,
                         help=f"Path to the 'isql' executable INSIDE the Docker container (Default: '{DEFAULT_ISQL_PATH_DOCKER}').")
     docker_group.add_argument("--docker-path", default=DEFAULT_DOCKER_PATH,
@@ -173,11 +183,11 @@ def main():
 
     args = parser.parse_args()
 
-    if not os.path.isdir(args.data_directory):
-        print(f"Error: Data directory '{args.data_directory}' not found.", file=sys.stderr)
+    host_data_dir_abs = os.path.abspath(args.data_directory)
+    if not os.path.isdir(host_data_dir_abs):
+        print(f"Error: Host data directory '{host_data_dir_abs}' not found.", file=sys.stderr)
         sys.exit(1)
 
-    # Validate Docker arguments
     if args.docker_container and not args.docker_data_mount_path:
         parser.error("--docker-data-mount-path is required when --docker-container is specified.")
     if not args.docker_container and args.docker_data_mount_path:
@@ -187,139 +197,175 @@ def main():
         print(f"Error: Number of processes must be at least 1.", file=sys.stderr)
         sys.exit(1)
 
-    files_to_load = []
-    search_description = ""
-
-    if args.file_pattern:
-        search_path = os.path.join(args.data_directory, args.file_pattern)
-        files_to_load = [os.path.abspath(f) for f in glob.glob(search_path)]
-        search_description = f"pattern '{args.file_pattern}'"
-    else:
-        print(f"No file pattern provided. Searching for files with extensions: {', '.join(COMMON_RDF_EXTENSIONS)} in '{args.data_directory}'...")
-        try:
-            for filename in os.listdir(args.data_directory):
-                if filename.lower().endswith(COMMON_RDF_EXTENSIONS):
-                    full_path = os.path.join(args.data_directory, filename)
-                    if os.path.isfile(full_path):
-                        files_to_load.append(os.path.abspath(full_path))
-            search_description = f"common RDF extensions ({', '.join(COMMON_RDF_EXTENSIONS)})"
-        except OSError as e:
-            print(f"Error reading directory '{args.data_directory}': {e}", file=sys.stderr)
-            sys.exit(1)
-
-    if not files_to_load:
-        print(f"No files found matching {search_description} in directory '{args.data_directory}'.", file=sys.stderr)
-        sys.exit(0)
-
-    files_to_load.sort()
-
-    print(f"Found {len(files_to_load)} files to load using {search_description}.")
-    print(f"Starting parallel bulk load with {args.num_processes} processes...")
-    print(f"Host: {args.host}:{args.port}")
+    # Determine the path Virtuoso server needs to see
     if args.docker_container:
-        print(f"Mode: Docker (Container: '{args.docker_container}', Mount Path: '{args.docker_data_mount_path}')")
+        virtuoso_accessible_data_dir = args.docker_data_mount_path
+        print(f"Info: Using Docker. Virtuoso server will access data from container path: '{virtuoso_accessible_data_dir}'")
+        print(f"      Ensure this path corresponds to host '{host_data_dir_abs}' and is in the container's DirsAllowed.")
     else:
-        print("Mode: Local")
-    print(f"User: {args.user}")
+        virtuoso_accessible_data_dir = host_data_dir_abs # Assuming server runs locally or has direct access
+        print(f"Info: Running locally. Virtuoso server will access data from host path: '{virtuoso_accessible_data_dir}'")
+        print(f"      Ensure this path is in the server's DirsAllowed configuration.")
 
-    has_quad_files = any(f.lower().endswith(('.nq', '.trig', '.trix')) for f in files_to_load)
-    has_triple_files = any(f.lower().endswith(('.ttl', '.rdf', '.owl', '.xml')) for f in files_to_load)
+    print("-" * 40)
+    print("Configuration:")
+    print(f"  Host: {args.host}:{args.port}")
+    print(f"  User: {args.user}")
+    print(f"  Mode: {'Docker' if args.docker_container else 'Local'}")
+    print(f"  Virtuoso Data Dir: {virtuoso_accessible_data_dir}")
+    print(f"  File Pattern: {args.file_pattern}")
+    print(f"  Recursive: {args.recursive}")
+    print(f"  Default Graph URI: {args.graph_uri}")
+    print(f"  Parallel Loaders: {args.num_processes}")
+    print(f"  Log Enable Mode: {args.log_enable}")
+    print("-" * 40)
 
-    if has_triple_files:
-        if has_quad_files:
-            print(f"Target Graph (for .ttl/.rdf/.owl/.xml): {args.graph_uri} (Note: Quad files define their own graphs)")
-        else:
-            print(f"Target Graph: {args.graph_uri}")
-    elif has_quad_files:
-        print("Target Graph: Determined by quad files (.nq/.trig/.trix)")
 
-    print("-------------------------------------------")
+    print("Step 1: Registering files with Virtuoso...")
+    ld_function = "ld_dir_all" if args.recursive else "ld_dir"
+    virtuoso_path = virtuoso_accessible_data_dir.replace(os.sep, '/')
+    register_sql = f"{ld_function}('{virtuoso_path}', '{args.file_pattern}', '{args.graph_uri}');"
+    print(f"Executing: {register_sql}")
 
-    worker_func = partial(load_file_virtuoso,
-                          host=args.host,
-                          port=args.port,
-                          user=args.user,
-                          password=args.password,
-                          graph_uri=args.graph_uri,
-                          host_data_dir=args.data_directory,
-                          docker_container=args.docker_container,
-                          docker_data_mount_path=args.docker_data_mount_path,
-                          docker_isql_path=args.docker_isql_path,
-                          docker_path=args.docker_path,
-                          host_isql_path=args.isql_path)
+    success, _, stderr = run_isql_command(register_sql, args)
+    if not success:
+        print("Error: Failed to register files with Virtuoso.", file=sys.stderr)
+        if "Security violation" in stderr or "cannot process file" in stderr:
+             print("Hint: This might be due to the data directory not being listed in 'DirsAllowed'", file=sys.stderr)
+             print(f"      in the virtuoso.ini file used by the server process. Required path: '{virtuoso_path}'", file=sys.stderr)
+        sys.exit(1)
 
-    successful_loads = 0
-    failed_loads = 0
-    with Pool(processes=args.num_processes) as pool:
-        results = list(tqdm(pool.imap(worker_func, files_to_load), total=len(files_to_load), desc="Loading files"))
+    print("File registration successful.")
+    print("-" * 40)
 
-    print("-------------------------------------------")
-    print("Load process finished. Results:")
-    for file_path, success, message in results:
-        if success:
-            successful_loads += 1
-        else:
-            failed_loads += 1
-            print(f"Failure: {os.path.basename(file_path)}")
+    print(f"Step 2: Starting {args.num_processes} parallel bulk loader processes...")
+    loader_sql = f"rdf_loader_run(log_enable=>{args.log_enable});"
+    print(f"Executing {args.num_processes} instances of: {loader_sql}")
 
-    print("-------------------------------------------")
-    print("All parallel loading processes finished.")
-
-    print("Running final checkpoint...")
-    checkpoint_command = []
-
-    if args.docker_container:
-        checkpoint_command = [
-            args.docker_path,
-            'exec',
-            args.docker_container,
-            args.docker_isql_path,
-            f"{args.host}:{args.port}",
-            args.user,
-            args.password,
-            "exec=checkpoint;"
-        ]
-        effective_checkpoint_isql_path = f"'{args.docker_isql_path}' inside container '{args.docker_container}'"
-    else:
-        checkpoint_command = [
-            args.isql_path,
-            f"{args.host}:{args.port}",
-            args.user,
-            args.password,
-            "exec=checkpoint;"
-        ]
-        effective_checkpoint_isql_path = f"'{args.isql_path}' on host"
-
-    try:
-        cp_process = subprocess.run(checkpoint_command, capture_output=True, text=True, check=True, encoding='utf-8')
-        print("Checkpoint successful.")
-        print(f"Output: {cp_process.stdout.strip()}")
-    except FileNotFoundError:
+    loader_processes = []
+    for i in range(args.num_processes):
+        command = []
         if args.docker_container:
-            print(f"Error: '{args.docker_path}' command not found or failed during checkpoint. Make sure Docker is installed and running.", file=sys.stderr)
+            command = [
+                args.docker_path, 'exec', args.docker_container, args.docker_isql_path,
+                f"{args.host}:{args.port}", args.user, args.password, f"exec={loader_sql}"
+            ]
         else:
-            print(f"Error: {effective_checkpoint_isql_path} command not found during checkpoint.", file=sys.stderr)
-        sys.exit(1)
-    except subprocess.CalledProcessError as e:
-        error_message = f"Error running checkpoint.\n"
-        error_message += f"Command: {' '.join(checkpoint_command)}\n"
-        error_message += f"Return Code: {e.returncode}\n"
-        error_message += f"Stderr: {e.stderr.strip()}\n"
-        error_message += f"Stdout: {e.stdout.strip()}"
-        print(error_message, file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:
-        error_message = f"An unexpected error occurred during checkpoint: {e}"
-        print(error_message, file=sys.stderr)
-        sys.exit(1)
+            command = [
+                args.isql_path, f"{args.host}:{args.port}", args.user, args.password, f"exec={loader_sql}"
+            ]
 
-    print("-------------------------------------------")
-    print(f"Summary: {successful_loads} files loaded successfully, {failed_loads} files failed.")
+        try:
+            proc = subprocess.Popen(command, text=True, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            loader_processes.append((proc, i + 1))
+            print(f"  Loader process {i+1} started (PID: {proc.pid})...")
+            time.sleep(0.2)
+        except FileNotFoundError:
+             executable = args.docker_path if args.docker_container else args.isql_path
+             print(f"Error: Command '{executable}' not found when trying to start loader {i+1}.", file=sys.stderr)
+             for p, _ in loader_processes:
+                 try: p.terminate()
+                 except ProcessLookupError: pass
+             sys.exit(1)
+        except Exception as e:
+             print(f"Error starting loader process {i+1}: {e}", file=sys.stderr)
+             for p, _ in loader_processes:
+                 try: p.terminate()
+                 except ProcessLookupError: pass
+             sys.exit(1)
 
-    if failed_loads > 0:
-        sys.exit(1)
+    print(f"Waiting for {len(loader_processes)} loader processes to complete...")
+    loader_errors = []
+    all_loaders_ok = True
+    for proc, num in loader_processes:
+        stdout, stderr = proc.communicate() # Wait for process to finish
+        if proc.returncode != 0:
+            all_loaders_ok = False
+            error_msg = f"Loader process {num} (PID: {proc.pid}) failed with exit code {proc.returncode}."
+            if stderr: error_msg += f"\n  Stderr: {stderr.strip()}"
+            if stdout: error_msg += f"\n  Stdout: {stdout.strip()}" # Check stdout too
+            print(error_msg, file=sys.stderr)
+            loader_errors.append(error_msg)
+        else:
+            print(f"  Loader process {num} (PID: {proc.pid}) finished successfully.")
+
+    if not all_loaders_ok:
+        print("Error: One or more loader processes failed.", file=sys.stderr)
+        # Don't exit immediately, proceed to check DB.DBA.load_list and checkpoint
     else:
-        sys.exit(0)
+        print("All loader processes finished.")
+    print("-" * 40)
+
+    print("Step 3: Checking final status from DB.DBA.load_list...")
+    status_sql = "SELECT ll_file, ll_graph, ll_state, ll_error FROM DB.DBA.load_list WHERE ll_state != 2 OR ll_error IS NOT NULL ORDER BY ll_file;"
+    success, stdout, _ = run_isql_command(status_sql, args, capture=True)
+
+    load_list_errors = []
+    if not success:
+        print("Warning: Could not query DB.DBA.load_list to check for errors.", file=sys.stderr)
+    elif stdout and "rows" in stdout.lower(): # Check if any rows were returned
+        print("Found potential issues in DB.DBA.load_list:", file=sys.stderr)
+        print(stdout, file=sys.stderr) # Print the raw output for details
+        # Basic parsing attempt
+        lines = stdout.splitlines()
+        header_found = False
+        for line in lines:
+            if "ll_file" in line and "ll_error" in line: # Find header
+                header_found = True
+                continue
+            if header_found and line.strip() and not line.startswith("____"):
+                 load_list_errors.append(line.strip())
+    else:
+        print("No errors found in DB.DBA.load_list (ll_state=2 and ll_error=NULL for all registered files).")
+
+    print("-" * 40)
+
+    print("Step 4: Running final checkpoint and resetting intervals...")
+    # Restore default intervals as bulk load might disable them
+    cleanup_sql = f"checkpoint; checkpoint_interval({args.checkpoint_interval}); scheduler_interval({args.scheduler_interval});"
+    print(f"Executing: {cleanup_sql}")
+    success, _, _ = run_isql_command(cleanup_sql, args)
+    if not success:
+        print("Error: Failed to run final checkpoint and reset intervals.", file=sys.stderr)
+        # This is serious, data might not be saved if log_enable=2 was used
+        if args.log_enable == 2:
+            print("CRITICAL WARNING: Checkpoint failed and log_enable=2 was used. BULK LOADED DATA MAY BE LOST.", file=sys.stderr)
+            print("Manually run 'checkpoint;' in isql immediately.", file=sys.stderr)
+        sys.exit(1) # Exit with error if checkpoint fails
+
+    print("Checkpoint and interval reset successful.")
+    print("-" * 40)
+
+    # --- Final Summary ---
+    print("Bulk Load Summary:")
+    final_status = 0 # 0 = success, 1 = error
+
+    if not all_loaders_ok:
+        print(f"- {len(loader_errors)} loader process(es) reported errors during execution.", file=sys.stderr)
+        final_status = 1
+    else:
+        print("- All loader processes completed without exit errors.")
+
+    if load_list_errors:
+        print(f"- Found {len(load_list_errors)} entries with errors or incomplete status in DB.DBA.load_list:", file=sys.stderr)
+        for err_line in load_list_errors:
+             print(f"  - {err_line}", file=sys.stderr)
+        final_status = 1
+    else:
+         # Only report fully successful if loaders were OK *and* load_list is clean
+        if all_loaders_ok:
+             print("- DB.DBA.load_list indicates all registered files were loaded successfully.")
+        else:
+             print("- DB.DBA.load_list check passed, but loader processes had issues (see above).")
+
+
+    print("-" * 40)
+    if final_status == 0:
+        print("Bulk load finished successfully.")
+    else:
+        print("Bulk load finished with errors.", file=sys.stderr)
+
+    sys.exit(final_status)
 
 
 if __name__ == "__main__":
