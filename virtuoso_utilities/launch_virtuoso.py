@@ -49,33 +49,25 @@ def get_optimal_buffer_values(memory_limit: str) -> Tuple[int, int]:
     Determine optimal values for NumberOfBuffers and MaxDirtyBuffers
     based on the specified container memory limit.
     
-    Uses recommended values from Virtuoso documentation for different memory sizes.
+    Uses the formula recommended by OpenLink: 
+    NumberOfBuffers = (MemoryInBytes * 0.66) / 8000
+    MaxDirtyBuffers = NumberOfBuffers * 0.75
     
     Args:
         memory_limit: Memory limit string in Docker format (e.g., "2g", "4096m")
         
     Returns:
-        Tuple[int, int]: Optimal values for NumberOfBuffers and MaxDirtyBuffers
+        Tuple[int, int]: Calculated values for NumberOfBuffers and MaxDirtyBuffers
     """
     try:
         memory_bytes = parse_memory_value(memory_limit)
-        memory_gb = memory_bytes / (1024 * 1024 * 1024)
         
-        # Use Virtuoso recommended values for different memory sizes
-        if memory_gb >= 64:
-            return 5450000, 4000000
-        elif memory_gb >= 48:
-            return 4000000, 3000000
-        elif memory_gb >= 32:
-            return 2720000, 2000000
-        elif memory_gb >= 16:
-            return 1360000, 1000000
-        elif memory_gb >= 8:
-            return 680000, 500000
-        elif memory_gb >= 4:
-            return 340000, 250000
-        else:  # 2GB or less
-            return 170000, 130000
+        number_of_buffers = int((memory_bytes * 0.66) / 8000)
+        
+        max_dirty_buffers = int(number_of_buffers * 0.75)
+                    
+        return number_of_buffers, max_dirty_buffers
+
     except Exception as e:
         print(f"Warning: Error calculating buffer values: {e}. Using default values.")
         # Default values for approximately 2GB RAM if calculation fails
@@ -148,7 +140,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--memory", 
         default=default_memory,
-        help="Memory limit for the container (e.g., 2g, 4g, max 16g)"
+        help="Memory limit for the container (e.g., 2g, 4g)"
     )
     parser.add_argument(
         "--cpu-limit", 
@@ -170,14 +162,6 @@ def parse_arguments() -> argparse.Namespace:
     )
     
     args, _ = parser.parse_known_args()
-    
-    memory_bytes = parse_memory_value(args.memory)
-    memory_gb = memory_bytes / (1024 * 1024 * 1024)
-    if memory_gb > 16:
-        print(f"Warning: Memory value {args.memory} exceeds the maximum supported limit of 16g.")
-        print("Setting memory to 16g to prevent container crashes.")
-        args.memory = "16g"
-        memory_gb = 16
     
     optimal_number_of_buffers, optimal_max_dirty_buffers = get_optimal_buffer_values(args.memory)
     

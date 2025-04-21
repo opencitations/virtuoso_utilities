@@ -10,9 +10,6 @@ A collection of Python utilities for interacting with OpenLink Virtuoso.
   - [Virtuoso Docker Launcher](#virtuoso-docker-launcher-launch_virtuosopy)
     - [Memory-Based Configuration](#memory-based-configuration)
   - [Parallel Bulk Loader](#parallel-bulk-loader-bulk_load_parallelpy)
-- [Development](#development)
-- [Contributing](#contributing)
-- [License](#license)
 
 ## Features
 
@@ -78,7 +75,7 @@ Use `poetry run python virtuoso_utilities/launch_virtuoso.py --help` to see all 
 *   `--data-dir`: Host directory to mount as Virtuoso data directory (Default: `./virtuoso-data`).
 *   `--container-data-dir`: Path inside container where data will be stored (Default: `/opt/virtuoso-opensource/database`).
 *   `--mount-volume HOST_PATH:CONTAINER_PATH`: Mount an additional host directory into the container. Format: `/path/on/host:/path/in/container`. Can be specified multiple times. Useful for making data files (e.g., RDF) available to the bulk loader.
-*   `--memory`: Memory limit for the container (Default: `2g`, Maximum: `16g`).
+*   `--memory`: Memory limit for the container (Default: `2g`).
 *   `--cpu-limit`: CPU limit for the container, 0 means no limit (Default: `0`).
 *   `--dba-password`: Password for the Virtuoso dba user (Default: `dba`).
 *   `--max-rows`: ResultSet maximum number of rows (Default: `100000`).
@@ -90,22 +87,20 @@ Use `poetry run python virtuoso_utilities/launch_virtuoso.py --help` to see all 
 
 **Memory-Based Configuration:**
 
-The script automatically calculates optimal values for `--number-of-buffers` and `--max-dirty-buffers` based on the specified container memory limit (`--memory` parameter), following OpenLink's recommendations.
+> **Important Note on Docker Resource Limits:**
+> By default, Docker Desktop runs with limited resources, especially RAM. Before allocating significant memory to the Virtuoso container using the `--memory` flag (e.g., more than a few gigabytes), ensure that Docker itself is configured to have access to at least that amount of RAM. You can usually adjust Docker's resource limits in its settings/preferences.
+> If the Virtuoso container requests more memory than Docker can provide, the container may fail to start or crash unexpectedly (often with exit code 137).
 
-> **IMPORTANT**: Memory allocation is limited to a maximum of 16GB to prevent container crashes. If you specify a higher value, it will automatically be reduced to 16GB with a warning message. This limitation exists because Docker containers with Virtuoso tend to be unstable with larger memory allocations, resulting in exit code 137 (out of memory) errors.
+The script automatically calculates optimal values for `--number-of-buffers` and `--max-dirty-buffers` based on the specified container memory limit (`--memory` parameter). It uses the general formula recommended in the [OpenLink Virtuoso Performance Tuning documentation](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692):
 
-This ensures optimal performance based on the memory allocated to the container. The auto-calculated values follow these general guidelines:
+```
+NumberOfBuffers = (MemoryInBytes * 0.66) / 8000
+MaxDirtyBuffers = NumberOfBuffers * 0.75
+```
 
-| Container Memory | NumberOfBuffers | MaxDirtyBuffers |
-|------------------|-----------------|-----------------|
-| 2 GB             | 170000          | 130000          |
-| 4 GB             | 340000          | 250000          |
-| 8 GB             | 680000          | 500000          |
-| 16 GB            | 1360000         | 1000000         |
+This calculation aims to provide good default performance based on the allocated memory. You can still manually override these calculated values using the `--number-of-buffers` and `--max-dirty-buffers` arguments if needed for specific tuning requirements.
 
-You can still manually override the buffer values if needed for specific use cases, but the memory limit of 16GB cannot be exceeded.
-
-For more information on Virtuoso performance tuning, refer to the [official OpenLink documentation on performance tuning](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692).
+For more detailed information on Virtuoso performance tuning, refer to the [official OpenLink documentation](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692).
 
 ### Parallel Bulk Loader (`bulk_load_parallel.py`)
 
@@ -165,22 +160,3 @@ Use `poetry run virtuoso_utilities/python bulk_load_parallel.py --help` to see a
 *   `--isql-path`: Path to `isql` on the host (Used only if not using Docker).
 *   `--docker-container`: Name/ID of the Virtuoso Docker container.
 *   `--docker-data-mount-path`: **Required with `--docker-container`**. Path inside the container where the host data directory is mounted.
-
-## Development
-
-To run tests:
-
-```bash
-poetry install --with dev
-poetry run pytest
-```
-
-(Note: Tests might require a running Virtuoso instance, potentially managed via `pytest-docker`.)
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.
-
-## License
-
-This project is licensed under the ISC License. See the [LICENSE](LICENSE) file for details. 
