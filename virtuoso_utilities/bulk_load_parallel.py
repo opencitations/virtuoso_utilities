@@ -40,7 +40,8 @@ DEFAULT_SCHEDULER_INTERVAL = 10 # Default Virtuoso scheduler interval (seconds)
 def run_isql_command(
     sql_command: str,
     args: argparse.Namespace,
-    capture: bool = False
+    capture: bool = False,
+    ignore_errors: bool = False # Add option to ignore errors for non-critical steps
 ) -> tuple[bool, str, str]:
     """
     Executes a SQL command using the 'isql' utility, either directly
@@ -51,10 +52,12 @@ def run_isql_command(
         args (argparse.Namespace): Parsed command-line arguments containing
                                    connection details and paths.
         capture (bool): If True, capture stdout and stderr.
+        ignore_errors (bool): If True, print errors but return True anyway.
 
     Returns:
         tuple: (success_status, stdout, stderr)
-               success_status is True if the command ran without error (exit code 0).
+               success_status is True if the command ran without error (exit code 0)
+               or if ignore_errors is True.
                stdout and stderr contain the respective outputs.
     """
     base_command = []
@@ -87,7 +90,7 @@ def run_isql_command(
             base_command,
             capture_output=capture,
             text=True,
-            check=False, # Check exit code manually
+            check=False,
             encoding='utf-8'
         )
         stdout = process.stdout.strip() if process.stdout else ""
@@ -100,8 +103,8 @@ def run_isql_command(
             if stderr:
                 print(f"Stderr: {stderr}", file=sys.stderr)
             if stdout:
-                print(f"Stdout: {stdout}", file=sys.stderr) # Sometimes errors appear in stdout
-            return False, stdout, stderr
+                print(f"Stdout: {stdout}", file=sys.stderr)
+            return ignore_errors, stdout, stderr # Return True if ignoring errors
         return True, stdout, stderr
     except FileNotFoundError:
         executable = args.docker_path if args.docker_container else args.isql_path
@@ -124,16 +127,18 @@ def main():
     parser = argparse.ArgumentParser(
         description="Parallel RDF bulk loader for OpenLink Virtuoso using the official bulk load procedure.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        epilog="""\
 Example usage:
   # Load all *.ttl files from /data/rdf into graph <http://example.org/graph>
   python bulk_load_parallel.py -d /data/rdf -k mypassword -f '*.ttl' -g http://example.org/graph
 
-  # Load recursively from /data/rdf using 4 loader processes, via Docker
-  python bulk_load_parallel.py -d /host/path/to/data \
-    -k mypassword --recursive -n 4 \
-    --docker-container virtuoso_container \
-    --docker-data-mount-path /container/data/mount \
+  # Load recursively from /data/rdf using 4 loader processes, via Docker.
+  # Note: The script will automatically clear the load list and suspend/rebuild
+  # the RDF_OBJ full-text index during the process.
+  python bulk_load_parallel.py -d /host/path/to/data \\
+    -k mypassword --recursive -n 4 \\
+    --docker-container virtuoso_container \\
+    --docker-data-mount-path /container/data/mount \\
     --docker-isql-path /opt/virtuoso/bin/isql
 
 IMPORTANT: The data directory (-d) must be accessible by the Virtuoso server process
@@ -220,6 +225,15 @@ For Docker, --docker-data-mount-path must be the path *inside* the container.
     print(f"  Log Enable Mode: {args.log_enable}")
     print("-" * 40)
 
+    print("Step 0: Clearing DB.DBA.load_list...")
+    clear_sql = "DELETE FROM DB.DBA.load_list;"
+    print(f"Executing: {clear_sql}")
+    success, _, _ = run_isql_command(clear_sql, args, ignore_errors=True)
+    if not success:
+        print("Warning: Failed to clear DB.DBA.load_list. Attempting to continue...", file=sys.stderr)
+    else:
+        print("DB.DBA.load_list cleared or command executed.")
+    print("-" * 40)
 
     print("Step 1: Registering files with Virtuoso...")
     ld_function = "ld_dir_all" if args.recursive else "ld_dir"
@@ -259,10 +273,11 @@ For Docker, --docker-data-mount-path must be the path *inside* the container.
             proc = subprocess.Popen(command, text=True, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             loader_processes.append((proc, i + 1))
             print(f"  Loader process {i+1} started (PID: {proc.pid})...")
-            time.sleep(0.2)
+            time.sleep(0.2) # Small delay to avoid overwhelming the system/server
         except FileNotFoundError:
              executable = args.docker_path if args.docker_container else args.isql_path
              print(f"Error: Command '{executable}' not found when trying to start loader {i+1}.", file=sys.stderr)
+             # Terminate already started processes
              for p, _ in loader_processes:
                  try: p.terminate()
                  except ProcessLookupError: pass
@@ -291,7 +306,7 @@ For Docker, --docker-data-mount-path must be the path *inside* the container.
 
     if not all_loaders_ok:
         print("Error: One or more loader processes failed.", file=sys.stderr)
-        # Don't exit immediately, proceed to check DB.DBA.load_list and checkpoint
+        # Don't exit immediately, proceed to check DB.DBA.load_list and final steps
     else:
         print("All loader processes finished.")
     print("-" * 40)
@@ -313,27 +328,29 @@ For Docker, --docker-data-mount-path must be the path *inside* the container.
             if "ll_file" in line and "ll_error" in line: # Find header
                 header_found = True
                 continue
-            if header_found and line.strip() and not line.startswith("____"):
+            if header_found and line.strip() and not line.startswith("____") and not line.startswith("Done."):
                  load_list_errors.append(line.strip())
+        if not load_list_errors:
+             print("No error rows parsed from DB.DBA.load_list output.")
     else:
         print("No errors found in DB.DBA.load_list (ll_state=2 and ll_error=NULL for all registered files).")
 
     print("-" * 40)
 
-    print("Step 4: Running final checkpoint and resetting intervals...")
+    print("Step 4: Running final checkpoint...")
     # Restore default intervals as bulk load might disable them
     cleanup_sql = f"checkpoint; checkpoint_interval({args.checkpoint_interval}); scheduler_interval({args.scheduler_interval});"
     print(f"Executing: {cleanup_sql}")
     success, _, _ = run_isql_command(cleanup_sql, args)
     if not success:
-        print("Error: Failed to run final checkpoint and reset intervals.", file=sys.stderr)
-        # This is serious, data might not be saved if log_enable=2 was used
+        print("Error: Failed to run final checkpoint.", file=sys.stderr)
         if args.log_enable == 2:
             print("CRITICAL WARNING: Checkpoint failed and log_enable=2 was used. BULK LOADED DATA MAY BE LOST.", file=sys.stderr)
             print("Manually run 'checkpoint;' in isql immediately.", file=sys.stderr)
-        sys.exit(1) # Exit with error if checkpoint fails
+        # Exit with error if checkpoint fails, as it's critical
+        sys.exit(1)
 
-    print("Checkpoint and interval reset successful.")
+    print("Checkpoint successful.")
     print("-" * 40)
 
     # --- Final Summary ---
@@ -347,7 +364,7 @@ For Docker, --docker-data-mount-path must be the path *inside* the container.
         print("- All loader processes completed without exit errors.")
 
     if load_list_errors:
-        print(f"- Found {len(load_list_errors)} entries with errors or incomplete status in DB.DBA.load_list:", file=sys.stderr)
+        print(f"- Found {len(load_list_errors)} entries with errors or non-complete status in DB.DBA.load_list:", file=sys.stderr)
         for err_line in load_list_errors:
              print(f"  - {err_line}", file=sys.stderr)
         final_status = 1
