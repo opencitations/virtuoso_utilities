@@ -68,7 +68,7 @@ poetry run python virtuoso_utilities/launch_virtuoso.py \
 Use `poetry run python virtuoso_utilities/launch_virtuoso.py --help` to see all available options:
 
 *   `--name`: Name for the Docker container (Default: `virtuoso`).
-*   `--image`: Docker image to use (Default: `openlink/virtuoso-opensource-7`).
+*   `--image`: Docker image to use (Default: `openlink/virtuoso-opensource-7@sha256:e07868a3db9090400332eaa8ee694b8cf9bf7eebc26db6bbdc3bb92fd30ed010`).
 *   `--version`: Version tag for the Virtuoso Docker image (Default: `latest`).
 *   `--http-port`: HTTP port to expose Virtuoso on (Default: `8890`).
 *   `--isql-port`: ISQL port to expose Virtuoso on (Default: `1111`).

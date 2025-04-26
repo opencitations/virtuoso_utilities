@@ -145,7 +145,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--image", 
-        default="openlink/virtuoso-opensource-7",
+        default="openlink/virtuoso-opensource-7@sha256:e07868a3db9090400332eaa8ee694b8cf9bf7eebc26db6bbdc3bb92fd30ed010",
         help="Docker image to use for Virtuoso"
     )
     parser.add_argument(
@@ -329,6 +329,12 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
     
     cmd.extend(["--name", args.name])
     
+    # Add user mapping to run as the host user
+    try:
+        cmd.extend(["--user", f"{os.getuid()}:{os.getgid()}"])
+    except AttributeError:
+        print("Warning: os.getuid/os.getgid not available on this system (likely Windows). Skipping user mapping.", file=sys.stderr)
+
     cmd.extend(["-p", f"{args.http_port}:8890"])
     cmd.extend(["-p", f"{args.isql_port}:1111"])
     
@@ -384,7 +390,11 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
     if not args.detach:
         cmd.insert(2, "--rm") # Insert after "docker run"
     
-    cmd.append(f"{args.image}:{args.version}")
+    # Append image name, adding version tag only if no SHA digest is present
+    image_name = args.image
+    if '@sha256:' not in image_name:
+        image_name = f"{image_name}:{args.version}"
+    cmd.append(image_name)
     
     return cmd, unique_paths_list
 
