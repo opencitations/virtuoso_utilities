@@ -16,6 +16,12 @@ from typing import List, Tuple
 
 import psutil
 
+DEFAULT_WAIT_TIMEOUT = 120
+DOCKER_EXEC_PATH = "docker"
+DOCKER_ISQL_PATH_INSIDE_CONTAINER = "isql"
+
+from virtuoso_utilities.isql_helpers import run_isql_command
+
 
 def bytes_to_docker_mem_str(num_bytes: int) -> str:
     """
@@ -49,6 +55,8 @@ def parse_memory_value(memory_str: str) -> int:
     
     match = re.match(r'^(\d+)([kmg]?)$', memory_str)
     if not match:
+        # Default to 2GB if parsing fails
+        print(f"Warning: Could not parse memory string '{memory_str}'. Defaulting to 2g.", file=sys.stderr)
         return 2 * 1024 * 1024 * 1024
     
     value, unit = match.groups()
@@ -89,82 +97,9 @@ def get_optimal_buffer_values(memory_limit: str) -> Tuple[int, int]:
         return number_of_buffers, max_dirty_buffers
 
     except Exception as e:
-        print(f"Warning: Error calculating buffer values: {e}. Using default values.")
-        # Default values for approximately 2GB RAM if calculation fails
+        print(f"Warning: Error calculating buffer values: {e}. Using default values.", file=sys.stderr)
+        # Default values approximately suitable for 1-2GB RAM if calculation fails
         return 170000, 130000
-
-
-def update_dirs_allowed(ini_path: str, container_paths_to_add: List[str]):
-    """
-    Updates the DirsAllowed setting in a virtuoso.ini file.
-
-    Reads the specified .ini file, finds the DirsAllowed line under the
-    [Parameters] section, adds the provided absolute container paths
-    (ensuring uniqueness), and writes the modified file back.
-
-    Args:
-        ini_path: Absolute path to the virtuoso.ini file on the host.
-        container_paths_to_add: List of absolute paths inside the container
-                                that should be allowed.
-    """
-    if not os.path.exists(ini_path):
-        print(f"Info: '{ini_path}' not found. Skipping DirsAllowed update. "
-              "Virtuoso will use default settings on first start.", file=sys.stderr)
-        return
-
-    try:
-        with open(ini_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-
-        new_lines = []
-        found_dirs_allowed = False
-        modified = False
-
-        for line in lines:
-            stripped_line = line.strip()
-            if stripped_line.lower().startswith('dirsallowed'):
-                found_dirs_allowed = True
-                try:
-                    key, value_str = stripped_line.split('=', 1)
-                    existing_paths_str = value_str.strip()
-                    existing_paths = [p.strip() for p in existing_paths_str.split(',') if p.strip()]
-
-                    all_paths = set(existing_paths)
-                    added_new = False
-                    for new_path in container_paths_to_add:
-                        if new_path not in all_paths:
-                            all_paths.add(new_path)
-                            added_new = True
-
-                    if added_new:
-                        original_key = key.strip()
-                        new_value_str = ", ".join(sorted(list(all_paths)))
-                        new_line = f"{original_key} = {new_value_str}\n"
-                        new_lines.append(new_line)
-                        modified = True
-                        print(f"Updated DirsAllowed in '{ini_path}': {new_value_str}")
-                    else:
-                        new_lines.append(line)
-
-                except ValueError:
-                    print(f"Warning: Could not parse DirsAllowed line: {line.strip()}", file=sys.stderr)
-                    new_lines.append(line)
-            else:
-                new_lines.append(line)
-
-        if not found_dirs_allowed:
-             print(f"Warning: 'DirsAllowed' key not found in '{ini_path}'. Cannot update.", file=sys.stderr)
-             return 
-
-        if modified:
-            with open(ini_path, 'w', encoding='utf-8') as f:
-                f.writelines(new_lines)
-            print(f"Successfully updated '{ini_path}'.")
-
-    except IOError as e:
-        print(f"Error reading/writing '{ini_path}': {e}", file=sys.stderr)
-    except Exception as e:
-        print(f"An unexpected error occurred while updating DirsAllowed in '{ini_path}': {e}", file=sys.stderr)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -286,13 +221,13 @@ def parse_arguments() -> argparse.Namespace:
         "--max-dirty-buffers", 
         type=int, 
         default=optimal_max_dirty_buffers,
-        help="Maximum dirty buffers before checkpoint (auto-calculated based on --memory value)"
+        help="Maximum dirty buffers before checkpoint (auto-calculated based on --memory value, requires integer)"
     )
     parser.add_argument(
         "--number-of-buffers", 
         type=int, 
         default=optimal_number_of_buffers,
-        help="Number of buffers (auto-calculated based on --memory value)"
+        help="Number of buffers (auto-calculated based on --memory value, requires integer)"
     )
     
     parser.add_argument(
@@ -375,7 +310,7 @@ def remove_container(container_name: str) -> bool:
         return False
 
 
-def build_docker_run_command(args: argparse.Namespace) -> List[str]:
+def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[str]]:
     """
     Build the Docker run command based on provided arguments.
     
@@ -383,18 +318,28 @@ def build_docker_run_command(args: argparse.Namespace) -> List[str]:
         args: Command-line arguments
         
     Returns:
-        List[str]: Command parts for subprocess.run
+        Tuple[List[str], List[str]]: 
+            - Command parts for subprocess.run
+            - List of unique container paths intended for DirsAllowed
     """
-    os.makedirs(args.data_dir, exist_ok=True)
+    host_data_dir_abs = os.path.abspath(args.data_dir)
+    os.makedirs(host_data_dir_abs, exist_ok=True)
     
-    cmd = ["docker", "run"]
+    cmd = [DOCKER_EXEC_PATH, "run"]
     
     cmd.extend(["--name", args.name])
     
     cmd.extend(["-p", f"{args.http_port}:8890"])
     cmd.extend(["-p", f"{args.isql_port}:1111"])
     
-    cmd.extend(["-v", f"{os.path.abspath(args.data_dir)}:{args.container_data_dir}"])
+    # Ensure container_data_dir is absolute-like for consistency
+    container_data_dir_path = args.container_data_dir if args.container_data_dir.startswith('/') else '/' + args.container_data_dir
+    cmd.extend(["-v", f"{host_data_dir_abs}:{container_data_dir_path}"])
+
+    # Start with default Virtuoso paths
+    default_dirs_allowed = {".", "../vad", "/usr/share/proj", "../virtuoso_input"}
+    paths_to_allow_in_container = default_dirs_allowed
+    paths_to_allow_in_container.add(container_data_dir_path)
     
     if args.extra_volumes:
         for volume_spec in args.extra_volumes:
@@ -407,10 +352,15 @@ def build_docker_run_command(args: argparse.Namespace) -> List[str]:
             if not os.path.exists(abs_host_path):
                  print(f"Warning: Host path '{abs_host_path}' for volume mount does not exist. "
                        "Docker will create it as a directory.", file=sys.stderr)
-            # Ensure the host path exists or Docker might create it with root ownership
-            # os.makedirs(abs_host_path, exist_ok=True) # Optionally create if needed
-            cmd.extend(["-v", f"{abs_host_path}:{container_path}"])
+            # Ensure container path is absolute-like
+            container_path_abs = container_path if container_path.startswith('/') else '/' + container_path
+            cmd.extend(["-v", f"{abs_host_path}:{container_path_abs}"])
+            paths_to_allow_in_container.add(container_path_abs)
     
+    # Combine defaults with specified paths, ensure uniqueness and sort
+    unique_paths_list = sorted(list(paths_to_allow_in_container))
+    dirs_allowed_value = ",".join(unique_paths_list)
+
     cmd.extend(["--memory", args.memory])
     if args.cpu_limit > 0:
         cmd.extend(["--cpus", str(args.cpu_limit)])
@@ -419,7 +369,9 @@ def build_docker_run_command(args: argparse.Namespace) -> List[str]:
         "DBA_PASSWORD": args.dba_password,
         "VIRT_Parameters_ResultSetMaxRows": str(args.max_rows),
         "VIRT_Parameters_MaxDirtyBuffers": str(args.max_dirty_buffers),
-        "VIRT_Parameters_NumberOfBuffers": str(args.number_of_buffers)
+        "VIRT_Parameters_NumberOfBuffers": str(args.number_of_buffers),
+        "VIRT_Parameters_DirsAllowed": dirs_allowed_value,
+        "VIRT_SPARQL_DefaultQuery": "SELECT (COUNT(*) AS ?quadCount) WHERE { GRAPH ?g { ?s ?p ?o } }"
     }
     
     for key, value in env_vars.items():
@@ -428,43 +380,83 @@ def build_docker_run_command(args: argparse.Namespace) -> List[str]:
     if args.detach:
         cmd.append("-d")
     
+    # Ensure --rm is added if not running detached
+    if not args.detach:
+        cmd.insert(2, "--rm") # Insert after "docker run"
+    
     cmd.append(f"{args.image}:{args.version}")
     
-    return cmd
+    return cmd, unique_paths_list
 
 
-def wait_for_virtuoso_ready(container_name: str, timeout: int = 120) -> bool:
+def wait_for_virtuoso_ready(
+    container_name: str,
+    host: str, # Usually localhost for readiness check
+    isql_port: int,
+    dba_password: str,
+    timeout: int = 120
+) -> bool:
     """
-    Wait until Virtuoso is ready to accept connections.
-    
+    Wait until Virtuoso is ready to accept ISQL connections.
+
+    Uses isql_helpers.run_isql_command to execute 'status();'.
+
     Args:
-        container_name: Name of the Virtuoso container
-        timeout: Maximum time to wait in seconds
-        
+        container_name: Name of the Virtuoso container (used for logging)
+        host: Hostname or IP address to connect to (usually localhost).
+        isql_port: The ISQL port Virtuoso is listening on (host port).
+        dba_password: The DBA password for Virtuoso.
+        timeout: Maximum time to wait in seconds.
+
     Returns:
-        bool: True if Virtuoso is ready, False if timeout occurred
+        bool: True if Virtuoso is ready, False if timeout or error occurred.
     """
-    print(f"Waiting for Virtuoso to become ready (timeout: {timeout}s)...")
+    print(f"Waiting for Virtuoso ISQL connection via Docker exec (timeout: {timeout}s)... using '{DOCKER_ISQL_PATH_INSIDE_CONTAINER}' in container")
     start_time = time.time()
-    
+
+    # Create a temporary args object compatible with run_isql_command
+    isql_helper_args = argparse.Namespace(
+        host="localhost",
+        port=1111,
+        user="dba",
+        password=dba_password,
+        docker_container=container_name,
+        docker_path=DOCKER_EXEC_PATH,
+        docker_isql_path=DOCKER_ISQL_PATH_INSIDE_CONTAINER,
+        isql_path=None
+    )
+
     while time.time() - start_time < timeout:
         try:
-            result = subprocess.run(
-                ["docker", "logs", container_name],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
+            success, stdout, stderr = run_isql_command(
+                isql_helper_args,
+                sql_command="status();",
+                capture=True
             )
-            
-            if "Server online at 1111 (pid" in result.stdout:
-                print("Virtuoso is ready!")
+
+            if success:
+                print("Virtuoso is ready! (ISQL connection successful)")
                 return True
-                
-            time.sleep(2)
-        except subprocess.SubprocessError:
-            pass
-    
-    print("Timeout waiting for Virtuoso to become ready")
+            else:
+                stderr_lower = stderr.lower()
+                if "connection refused" in stderr_lower or \
+                   "connect failed" in stderr_lower or \
+                   "connection failed" in stderr_lower or \
+                   "cannot connect" in stderr_lower or \
+                   "no route to host" in stderr_lower:
+                    if int(time.time() - start_time) % 10 == 0:
+                        print(f"  (ISQL connection failed, retrying... {int(time.time() - start_time)}s elapsed)")
+                else:
+                    print(f"ISQL check failed with an unexpected error. See previous logs. Stopping wait.", file=sys.stderr)
+                    return False
+
+            time.sleep(3)
+
+        except Exception as e:
+            print(f"Warning: Unexpected error in readiness check loop: {e}", file=sys.stderr)
+            time.sleep(5)
+
+    print(f"Timeout ({timeout}s) waiting for Virtuoso ISQL connection at {host}:{isql_port}.")
     return False
 
 
@@ -495,95 +487,62 @@ def run_docker_command(cmd: List[str], capture_output=False, check=True, suppres
 
 def main() -> int:
     """
-    Main function to launch Virtuoso with Docker, handling first-time setup
-    for DirsAllowed modification.
+    Main function to launch Virtuoso with Docker.
     """
     args = parse_arguments()
 
     if not check_docker_installed():
+        print("Error: Docker command not found. Please install Docker.", file=sys.stderr)
         return 1
 
     host_data_dir_abs = os.path.abspath(args.data_dir)
-    virtuoso_ini_host_path = os.path.join(host_data_dir_abs, 'virtuoso.ini')
-    is_first_run = not os.path.exists(virtuoso_ini_host_path)
 
     container_exists = check_container_exists(args.name)
 
     if container_exists:
+        print(f"Checking status of existing container '{args.name}'...")
+        # Check if it's running
+        result = subprocess.run(
+            [DOCKER_EXEC_PATH, "ps", "--filter", f"name=^{args.name}$", "--format", "{{.Status}}"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        is_running = "Up" in result.stdout
+
         if args.force_remove:
-            print(f"Container '{args.name}' already exists. Removing...")
+            print(f"Container '{args.name}' already exists. Forcing removal...")
             if not remove_container(args.name):
                 print(f"Error: Failed to remove existing container '{args.name}'", file=sys.stderr)
                 return 1
-            container_exists = False
-        else:
-            print(f"Error: Container '{args.name}' already exists. Use --force-remove to replace it.",
-                  file=sys.stderr)
-            return 1
+        elif is_running:
+             print(f"Error: Container '{args.name}' is already running. Stop it first or use --force-remove.", file=sys.stderr)
+             return 1
+        else: # Exists but not running
+             print(f"Container '{args.name}' exists but is stopped. Removing it before starting anew...")
+             if not remove_container(args.name):
+                print(f"Error: Failed to remove existing stopped container '{args.name}'", file=sys.stderr)
+                return 1
 
-    paths_to_allow_in_container = []
-    if args.container_data_dir:
-        paths_to_allow_in_container.append(args.container_data_dir if args.container_data_dir.startswith('/') else '/' + args.container_data_dir)
-    if args.extra_volumes:
-        for volume_spec in args.extra_volumes:
-            if ':' in volume_spec:
-                _, container_path = volume_spec.split(':', 1)
-                paths_to_allow_in_container.append(container_path if container_path.startswith('/') else '/' + container_path)
-    unique_paths_to_allow = list(set(paths_to_allow_in_container))
+    # Build the command and get paths for logging
+    docker_cmd, unique_paths_to_allow = build_docker_run_command(args)
 
     try:
-        if is_first_run:
-            print(f"'{virtuoso_ini_host_path}' not found. Performing first-time setup...")
+        run_docker_command(docker_cmd, check=not args.detach) # Don't check exit code if detached
 
-            initial_docker_cmd = build_docker_run_command(args)
-            if "-d" not in initial_docker_cmd:
-                 try:
-                     image_index = initial_docker_cmd.index(f"{args.image}:{args.version}")
-                     initial_docker_cmd.insert(image_index, "-d")
-                 except ValueError:
-                      print("Warning: Could not precisely locate image name to insert -d flag. Appending instead.", file=sys.stderr)
-                      initial_docker_cmd.append("-d")
-
-            print("Starting initial container run in background for initialization...")
-            run_docker_command(initial_docker_cmd)
-
-            if not wait_for_virtuoso_ready(args.name, timeout=120):
-                 print("Warning: Initial readiness check timed out. Proceeding with stop/modify/start, but ini file might not be ready.", file=sys.stderr)
-            else:
-                 print("Initial instance appears ready.")
-                 time.sleep(5)
-
-            print(f"Stopping container '{args.name}' to apply configuration changes...")
-            run_docker_command(["docker", "stop", args.name])
-            time.sleep(2)
-
-            if unique_paths_to_allow:
-                print(f"Attempting to update DirsAllowed in newly created '{virtuoso_ini_host_path}'...")
-                update_dirs_allowed(virtuoso_ini_host_path, unique_paths_to_allow)
-            else:
-                 print("No extra volumes specified, skipping DirsAllowed update.")
-
-            print(f"Restarting container '{args.name}' with updated configuration...")
-            run_docker_command(["docker", "start", args.name])
-
-            if args.wait_ready:
-                 print("Waiting for final Virtuoso readiness...")
-                 if not wait_for_virtuoso_ready(args.name):
-                     print("Warning: Container restarted but final readiness check timed out.", file=sys.stderr)
-                     pass
-
-        else:
-            print(f"'{virtuoso_ini_host_path}' found. Performing standard setup...")
-            if unique_paths_to_allow:
-                 update_dirs_allowed(virtuoso_ini_host_path, unique_paths_to_allow)
-
-            docker_cmd = build_docker_run_command(args)
-            run_docker_command(docker_cmd)
-
-            if args.detach and args.wait_ready:
-                if not wait_for_virtuoso_ready(args.name):
-                    print("Warning: Container started but readiness check timed out.", file=sys.stderr)
-                    pass
+        if args.detach and args.wait_ready:
+            print("Waiting for Virtuoso readiness...")
+            if not wait_for_virtuoso_ready(
+                args.name,
+                "localhost", # Assuming ISQL check connects via localhost mapping
+                args.isql_port,
+                args.dba_password,
+                timeout=DEFAULT_WAIT_TIMEOUT
+            ):
+                print("Warning: Container started in detached mode but readiness check timed out or failed.", file=sys.stderr)
+                # Don't exit with error, just warn
+        elif not args.detach:
+             # If running attached, it only exits when Virtuoso stops or fails
+             print("Virtuoso container exited.")
+             return 0 # Assume normal exit if not detached and no exception
 
 
         print(f"""
@@ -591,7 +550,8 @@ Virtuoso launched successfully!
 - Data Directory Host: {host_data_dir_abs}
 - Data Directory Container: {args.container_data_dir}
 - Web interface: http://localhost:{args.http_port}/conductor
-- ISQL: isql localhost:{args.isql_port} dba <password>
+- ISQL access (Host): isql localhost:{args.isql_port} dba {args.dba_password}
+- ISQL access (Inside container): isql localhost:1111 dba {args.dba_password}
 - Container name: {args.name}
 """)
         if args.extra_volumes:
@@ -599,22 +559,33 @@ Virtuoso launched successfully!
             for volume_spec in args.extra_volumes:
                  if ':' in volume_spec:
                     host_path, container_path = volume_spec.split(':', 1)
-                    print(f"  - Host: {os.path.abspath(host_path)} -> Container: {container_path}")
+                    container_path_abs = container_path if container_path.startswith('/') else '/' + container_path
+                    print(f"  - Host: {os.path.abspath(host_path)} -> Container: {container_path_abs}")
         if unique_paths_to_allow:
-             print(f"DirsAllowed in container expected to include: {', '.join(unique_paths_to_allow)}")
+             print(f"DirsAllowed set in container via environment variable to: {', '.join(unique_paths_to_allow)}")
+
         return 0
 
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("Virtuoso launch failed.", file=sys.stderr)
-        if check_container_exists(args.name):
+    except subprocess.CalledProcessError:
+        print("\nVirtuoso launch failed. Check Docker logs for errors.", file=sys.stderr)
+        # Attempt cleanup only if the container was meant to be persistent (detached)
+        # or if we know it might have been created partially.
+        if args.detach and check_container_exists(args.name):
              print(f"Attempting to stop potentially problematic container '{args.name}' ...", file=sys.stderr)
-             run_docker_command(["docker", "stop", args.name], suppress_error=True, check=False)
+             run_docker_command([DOCKER_EXEC_PATH, "stop", args.name], suppress_error=True, check=False)
+             print(f"Attempting to remove potentially problematic container '{args.name}' ...", file=sys.stderr)
+             run_docker_command([DOCKER_EXEC_PATH, "rm", args.name], suppress_error=True, check=False)
+
         return 1
+    except FileNotFoundError:
+         # Error already printed by run_docker_command
+         return 1
     except Exception as e:
-        print(f"An unexpected error occurred during launch: {e}", file=sys.stderr)
+        print(f"\nAn unexpected error occurred during launch: {e}", file=sys.stderr)
         if check_container_exists(args.name):
-             print(f"Attempting to stop potentially problematic container '{args.name}' due to unexpected error...", file=sys.stderr)
-             run_docker_command(["docker", "stop", args.name], suppress_error=True, check=False)
+             print(f"Attempting to stop/remove potentially problematic container '{args.name}' due to unexpected error...", file=sys.stderr)
+             run_docker_command([DOCKER_EXEC_PATH, "stop", args.name], suppress_error=True, check=False)
+             run_docker_command([DOCKER_EXEC_PATH, "rm", args.name], suppress_error=True, check=False)
         return 1
 
 
