@@ -10,7 +10,7 @@ A collection of Python utilities for interacting with OpenLink Virtuoso.
   - [Virtuoso Docker Launcher](#virtuoso-docker-launcher-launch_virtuosopy)
     - [Memory-Based Configuration](#memory-based-configuration)
   - [Parallel Bulk Loader](#parallel-bulk-loader-bulk_load_parallelpy)
-  - [Bulk Load Monitor](#bulk-load-monitor-monitor_bulk_loadpy)
+    - [Performance Note: Why only `.nq.gz`?](#performance-note-why-only-nqgz)
 
 ## Features
 
@@ -106,57 +106,64 @@ The script aims to simplify memory configuration based on Virtuoso best practice
 
 For more detailed information on Virtuoso performance tuning, refer to the [official OpenLink documentation](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692).
 
-### Parallel Bulk Loader (`bulk_load_parallel.py`)
+### Sequential Bulk Loader (`bulk_load_parallel.py`)
 
-This script offers a parallel method to load N-Quads formatted files (`*.nq`, `*.nq.gz`, etc.) into a Virtuoso instance. It leverages Python's `multiprocessing` to launch multiple worker processes, each connecting to Virtuoso via `isql` (either locally or through `docker exec`) and directly invoking the `TTLP` function on individual files. This bypasses the standard `ld_dir`/`rdf_loader_run` sequence, offering a potentially faster approach specifically for N-Quads by managing file discovery and loading logic within the Python script.
+This script offers a sequential method to load N-Quads Gzipped files (`*.nq.gz`) into a Virtuoso instance using the standard Virtuoso bulk loading procedure (`ld_dir`/`ld_dir_all` followed by `rdf_loader_run`).
+
+#### Performance Note: Why only `.nq.gz`?
+
+This script *only* processes files ending in `.nq.gz`. This restriction is intentional and provides significant performance advantages:
+
+*   **Avoiding Artificial Throttling:** By reading compressed data, the load on Virtuoso's internal processing is more balanced. Loading many uncompressed files can sometimes overwhelm Virtuoso's internal mechanisms, causing it to introduce artificial delays to manage the workload. Using compressed files mitigates this effect.
+
+Therefore, for optimal bulk loading performance with Virtuoso's `ld_dir`/`rdf_loader_run` mechanism, using `.nq.gz` files is strongly recommended.
+
+**How it works:** It first registers files found in the specified directory using the `ld_dir` (or `ld_dir_all` for recursive loading) ISQL function, adding them to the `DB.DBA.load_list` queue. Then, it executes the `rdf_loader_run()` ISQL function once to process this queue sequentially. Progress and errors can be monitored by querying `DB.DBA.load_list`.
 
 **Important Prerequisites:**
 
 *   **Server Access & `DirsAllowed` Configuration:** The directory specified by `-d` (`--data-directory`) **must** be accessible by the Virtuoso server process itself. Crucially, this path **must** be listed in the `DirsAllowed` parameter within the Virtuoso INI file (or configured via environment variables if using the `launch_virtuoso.py` script).
-    *   **When using Docker (`--docker-container`)**: `-d` specifies the **absolute path *inside* the container** (e.g., `/rdf_mount_in_container`). Ensure this path corresponds to a mounted volume and is included in the container's `DirsAllowed` configuration. Using `launch_virtuoso.py` with `--mount-volume` handles this automatically.
-    *   **When *not* using Docker**: `-d` specifies the **path on the host system** accessible by the Virtuoso process. Ensure this host path is listed in the server's `virtuoso.ini` `DirsAllowed`.
+    *   **When using Docker (`--docker-container`)**: `-d` specifies the **absolute path *inside* the container** (e.g., `/rdf_mount_in_container`). Ensure this path corresponds to a mounted volume and is included in the container\'s `DirsAllowed` configuration. Using `launch_virtuoso.py` with `--mount-volume` handles this automatically.
+    *   **When *not* using Docker**: `-d` specifies the **path on the host system** accessible by the Virtuoso process. Ensure this host path is listed in the server\'s `virtuoso.ini` `DirsAllowed`.
 
 **Basic Usage (Host Virtuoso):**
 
 ```bash
-poetry run python virtuoso_utilities/bulk_load_parallel.py \\
-    -d /path/accessible/by/virtuoso/server \\
+poetry run python virtuoso_utilities/bulk_load_parallel.py \\\\
+    -d /path/accessible/by/virtuoso/server \\\\
     -k <your_virtuoso_password>
 ```
 
 **Customized Usage (Host Virtuoso):**
 
 ```bash
-poetry run python virtuoso_utilities/bulk_load_parallel.py \\
-    -d /path/accessible/by/virtuoso/server \\
-    -k <your_virtuoso_password> \\
-    --host <virtuoso_host> \\
-    --port <virtuoso_port> \\
-    --user <virtuoso_user> \\
-    --num-processes 4 \\
-    --file-pattern "*.nq.gz" \\
-    --recursive \\
-    --batch-size 50
+poetry run python virtuoso_utilities/bulk_load_parallel.py \\\\
+    -d /path/accessible/by/virtuoso/server \\\\
+    -k <your_virtuoso_password> \\\\
+    --host <virtuoso_host> \\\\
+    --port <virtuoso_port> \\\\
+    --user <virtuoso_user> \\\\
+    --file-pattern "*.nq.gz" \\\\
+    --recursive
 ```
 
 **Usage with Docker:**
 
 ```bash
 # Example: Launch Virtuoso first using launch_virtuoso.py
-poetry run python virtuoso_utilities/launch_virtuoso.py \\
-    --name my-virtuoso-loader \\
-    --isql-port 1112 \\
-    --data-dir ./virtuoso-loader-data \\
+poetry run python virtuoso_utilities/launch_virtuoso.py \
+    --name my-virtuoso-loader \
+    --isql-port 1112 \
+    --data-dir ./virtuoso-loader-data \
     --mount-volume /home/user/my_rdf_data:/rdf_mount_in_container
 
-# Then run the bulk loader
-poetry run python virtuoso_utilities/bulk_load_parallel.py \\
+# Then run the bulk loader (note: no --file-pattern needed)
+poetry run python virtuoso_utilities/bulk_load_parallel.py \
     -d /rdf_mount_in_container \\ # Path INSIDE CONTAINER
     -k <your_virtuoso_password> \\
     --port 1112 \\ # Use the mapped ISQL port
     --docker-container my-virtuoso-loader \\
     --docker-isql-path /opt/virtuoso-opensource/bin/isql \\ # Typical path in container
-    --file-pattern "*.nq.gz" \\
     --recursive
 ```
 
@@ -164,7 +171,7 @@ poetry run python virtuoso_utilities/bulk_load_parallel.py \\
 
 Use `poetry run python virtuoso_utilities/bulk_load_parallel.py --help` to see all available options:
 
-*   `-d`, `--data-directory`: **Required.** Path where the script will search for N-Quads files. **Meaning depends on context:**
+*   `-d`, `--data-directory`: **Required.** Path where the script will search for N-Quads Gzipped (`.nq.gz`) files to register using `ld_dir` or `ld_dir_all`. **Meaning depends on context:**
     *   If using Docker (`--docker-container`): This must be the **absolute path inside the container** (e.g., `/rdf_mount_in_container`) accessible by Virtuoso.
     *   If *not* using Docker: This must be the **path on the host system** accessible by the Virtuoso server process.
     *   In either case, this path **must** be listed in the relevant `DirsAllowed` setting.
@@ -172,10 +179,7 @@ Use `poetry run python virtuoso_utilities/bulk_load_parallel.py --help` to see a
 *   `-H`, `--host`: Virtuoso server host (Default: `localhost`).
 *   `-P`, `--port`: Virtuoso server ISQL port (Default: `1111`). Use the *host* port if mapped via Docker.
 *   `-u`, `--user`: Virtuoso username (Default: `dba`).
-*   `-n`, `--num-processes`: Number of parallel file loading processes to launch (Default: calculated based on CPU cores / 2.5).
-*   `-f`, `--file-pattern`: File pattern for finding N-Quads files (e.g., `*.nq`, `*.nq.gz`, Default: `*.nq`).
-*   `--recursive`: Search for files recursively within the data directory.
-*   `--batch-size`: Number of files to load per batch before checkpointing (Default: `100`). *Note: This refers to the script's batching, not a Virtuoso batch size.*
+*   `--recursive`: Search for `.nq.gz` files recursively within the data directory (uses `ld_dir_all` instead of `ld_dir`).
 *   `--checkpoint-interval`: Interval (seconds) to set for Virtuoso checkpointing *after* the bulk load completes (Default: `60`).
 *   `--scheduler-interval`: Interval (seconds) to set for the Virtuoso scheduler *after* the bulk load completes (Default: `10`).
 *   `--isql-path`: Path to `isql` on the host system (Default: `isql`). Used only if not in Docker mode.

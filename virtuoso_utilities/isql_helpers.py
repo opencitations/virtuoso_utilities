@@ -3,10 +3,11 @@ Helper functions for executing ISQL commands and scripts against Virtuoso,
 handling both direct execution and execution via Docker.
 """
 import argparse
-import subprocess
-import sys
 import os
 import shlex
+import subprocess
+import sys
+
 
 def _run_subprocess(
     command: list[str] | str,
