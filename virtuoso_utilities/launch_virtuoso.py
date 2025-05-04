@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 from typing import List, Tuple
+import configparser
 
 import psutil
 
@@ -22,6 +23,9 @@ DOCKER_ISQL_PATH_INSIDE_CONTAINER = "isql"
 
 from virtuoso_utilities.isql_helpers import run_isql_command
 
+# Minimum database size in bytes to trigger MaxCheckpointRemap calculation
+MIN_DB_SIZE_FOR_CHECKPOINT_REMAP_GB = 1
+MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP = MIN_DB_SIZE_FOR_CHECKPOINT_REMAP_GB * 1024**3
 
 def bytes_to_docker_mem_str(num_bytes: int) -> str:
     """
@@ -72,6 +76,35 @@ def parse_memory_value(memory_str: str) -> int:
         return value
 
 
+def get_directory_size(directory_path: str) -> int:
+    """
+    Calculate the total size of all files within a directory.
+
+    Args:
+        directory_path: The path to the directory.
+
+    Returns:
+        Total size in bytes.
+    """
+    total_size = 0
+    if not os.path.isdir(directory_path):
+        return 0
+    try:
+        for dirpath, dirnames, filenames in os.walk(directory_path):
+            for f in filenames:
+                fp = os.path.join(dirpath, f)
+                # skip if it is symbolic link
+                if not os.path.islink(fp):
+                    try:
+                        total_size += os.path.getsize(fp)
+                    except OSError as e:
+                        print(f"Warning: Could not get size of file '{fp}': {e}", file=sys.stderr)
+    except OSError as e:
+        print(f"Warning: Could not walk directory '{directory_path}': {e}", file=sys.stderr)
+
+    return total_size
+
+
 def get_optimal_buffer_values(memory_limit: str) -> Tuple[int, int]:
     """
     Determine optimal values for NumberOfBuffers and MaxDirtyBuffers
@@ -100,6 +133,90 @@ def get_optimal_buffer_values(memory_limit: str) -> Tuple[int, int]:
         print(f"Warning: Error calculating buffer values: {e}. Using default values.", file=sys.stderr)
         # Default values approximately suitable for 1-2GB RAM if calculation fails
         return 170000, 130000
+
+
+def calculate_max_checkpoint_remap(size_bytes: int) -> int:
+    """
+    Calculate the MaxCheckpointRemap value based on database size.
+    
+    Args:
+        size_bytes: Database size in bytes
+        
+    Returns:
+        int: Calculated MaxCheckpointRemap value
+    """
+    return int(size_bytes / 8192 / 4)
+
+
+def update_ini_max_checkpoint_remap(ini_path: str, data_dir_path: str):
+    """
+    Attempts to update the MaxCheckpointRemap value in the virtuoso.ini file
+    based on the actual size of the data directory.
+
+    Args:
+        ini_path: The full path to the virtuoso.ini file.
+        data_dir_path: The path to the data directory to measure.
+    """
+    if not os.path.exists(ini_path):
+        print(f"Info: virtuoso.ini not found at '{ini_path}'. Likely first run. Skipping MaxCheckpointRemap update.")
+        return
+
+    print(f"Info: Checking existing virtuoso.ini at '{ini_path}' for MaxCheckpointRemap update...")
+    actual_db_size_bytes = get_directory_size(data_dir_path)
+
+    if actual_db_size_bytes < MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP:
+        print(f"Info: Host data directory '{data_dir_path}' size ({actual_db_size_bytes / (1024**3):.2f} GiB) is below threshold ({MIN_DB_SIZE_FOR_CHECKPOINT_REMAP_GB} GiB). No changes made to MaxCheckpointRemap in virtuoso.ini.")
+        return
+
+    calculated_remap_value = calculate_max_checkpoint_remap(actual_db_size_bytes)
+    if calculated_remap_value <= 0:
+        print(f"Warning: Calculated MaxCheckpointRemap based on DB size ({actual_db_size_bytes} bytes) is zero or negative. No changes made to virtuoso.ini.", file=sys.stderr)
+        return
+
+    config = configparser.ConfigParser(interpolation=None)
+    config.optionxform = str # Keep case sensitivity
+    made_changes = False
+    try:
+        # Read with UTF-8, ignore errors initially if file has issues
+        config.read(ini_path, encoding='utf-8')
+
+        current_db_remap = config.get('Database', 'MaxCheckpointRemap', fallback=None)
+        current_temp_db_remap = config.get('TempDatabase', 'MaxCheckpointRemap', fallback=None)
+
+        calculated_remap_str = str(calculated_remap_value)
+
+        # Update [Database] section
+        if not config.has_section('Database'):
+            config.add_section('Database')
+            print(f"Info: Added [Database] section to '{ini_path}'.")
+        if current_db_remap != calculated_remap_str:
+            config.set('Database', 'MaxCheckpointRemap', calculated_remap_str)
+            print(f"Info: Updating [Database] MaxCheckpointRemap from '{current_db_remap}' to '{calculated_remap_str}' in '{ini_path}'.")
+            made_changes = True
+
+        # Update [TempDatabase] section
+        if not config.has_section('TempDatabase'):
+             config.add_section('TempDatabase')
+             print(f"Info: Added [TempDatabase] section to '{ini_path}'.")
+        if current_temp_db_remap != calculated_remap_str:
+            config.set('TempDatabase', 'MaxCheckpointRemap', calculated_remap_str)
+            print(f"Info: Updating [TempDatabase] MaxCheckpointRemap from '{current_temp_db_remap}' to '{calculated_remap_str}' in '{ini_path}'.")
+            made_changes = True
+
+        if made_changes:
+            # Write changes back with UTF-8 encoding
+            with open(ini_path, 'w', encoding='utf-8') as configfile:
+                config.write(configfile)
+            print(f"Info: Successfully saved changes to '{ini_path}'.")
+        else:
+            print(f"Info: Calculated MaxCheckpointRemap ('{calculated_remap_str}') matches existing values in '{ini_path}'. No changes needed.")
+
+    except configparser.Error as e:
+        print(f"Error: Failed to parse or update virtuoso.ini at '{ini_path}': {e}", file=sys.stderr)
+    except IOError as e:
+        print(f"Error: Failed to read or write virtuoso.ini at '{ini_path}': {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"Error: An unexpected error occurred while updating virtuoso.ini: {e}", file=sys.stderr)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -213,6 +330,31 @@ def parse_arguments() -> argparse.Namespace:
         help="ResultSet maximum number of rows"
     )
     
+    parser.add_argument(
+        "--force-remove", 
+        action="store_true",
+        help="Force removal of existing container with the same name"
+    )
+
+    parser.add_argument(
+        "--wait-ready", 
+        action="store_true",
+        help="Wait until Virtuoso is ready to accept connections"
+    )
+    parser.add_argument(
+        "--detach", 
+        action="store_true",
+        help="Run container in detached mode"
+    )
+    
+    parser.add_argument(
+        "--estimated-db-size-gb",
+        type=float,
+        default=0,
+        help="Estimated database size in GB. If provided, MaxCheckpointRemap will be preconfigured "
+             "based on this estimate rather than measuring existing data."
+    )
+    
     args_temp, _ = parser.parse_known_args()
     
     optimal_number_of_buffers, optimal_max_dirty_buffers = get_optimal_buffer_values(args_temp.memory)
@@ -228,22 +370,6 @@ def parse_arguments() -> argparse.Namespace:
         type=int, 
         default=optimal_number_of_buffers,
         help="Number of buffers (auto-calculated based on --memory value, requires integer)"
-    )
-    
-    parser.add_argument(
-        "--wait-ready", 
-        action="store_true",
-        help="Wait until Virtuoso is ready to accept connections"
-    )
-    parser.add_argument(
-        "--detach", 
-        action="store_true",
-        help="Run container in detached mode"
-    )
-    parser.add_argument(
-        "--force-remove", 
-        action="store_true",
-        help="Force removal of existing container with the same name"
     )
     
     return parser.parse_args()
@@ -342,31 +468,28 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
     container_data_dir_path = args.container_data_dir if args.container_data_dir.startswith('/') else '/' + args.container_data_dir
     cmd.extend(["-v", f"{host_data_dir_abs}:{container_data_dir_path}"])
 
+    # Mount additional volumes
+    if args.extra_volumes:
+        for volume_spec in args.extra_volumes:
+            if ':' in volume_spec:
+                host_path, container_path = volume_spec.split(':', 1)
+                host_path_abs = os.path.abspath(host_path)
+                cmd.extend(["-v", f"{host_path_abs}:{container_path}"])
+
     # Start with default Virtuoso paths
     default_dirs_allowed = {".", "../vad", "/usr/share/proj", "../virtuoso_input"}
     paths_to_allow_in_container = default_dirs_allowed
     paths_to_allow_in_container.add(container_data_dir_path)
     
+    # Add extra mounted volumes to paths_to_allow_in_container
     if args.extra_volumes:
         for volume_spec in args.extra_volumes:
-            if ':' not in volume_spec:
-                print(f"Warning: Invalid format for --mount-volume '{volume_spec}'. Skipping. "
-                      "Expected format: HOST_PATH:CONTAINER_PATH", file=sys.stderr)
-                continue
-            host_path, container_path = volume_spec.split(':', 1)
-            abs_host_path = os.path.abspath(host_path)
-            if not os.path.exists(abs_host_path):
-                 print(f"Warning: Host path '{abs_host_path}' for volume mount does not exist. "
-                       "Docker will create it as a directory.", file=sys.stderr)
-            # Ensure container path is absolute-like
-            container_path_abs = container_path if container_path.startswith('/') else '/' + container_path
-            cmd.extend(["-v", f"{abs_host_path}:{container_path_abs}"])
-            paths_to_allow_in_container.add(container_path_abs)
+            if ':' in volume_spec:
+                _, container_path = volume_spec.split(':', 1)
+                container_path_abs = container_path if container_path.startswith('/') else '/' + container_path
+                paths_to_allow_in_container.add(container_path_abs)
+                print(f"Info: Adding mounted volume path '{container_path_abs}' to DirsAllowed.")
     
-    # Combine defaults with specified paths, ensure uniqueness and sort
-    unique_paths_list = sorted(list(paths_to_allow_in_container))
-    dirs_allowed_value = ",".join(unique_paths_list)
-
     cmd.extend(["--memory", args.memory])
     if args.cpu_limit > 0:
         cmd.extend(["--cpus", str(args.cpu_limit)])
@@ -376,10 +499,19 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
         "VIRT_Parameters_ResultSetMaxRows": str(args.max_rows),
         "VIRT_Parameters_MaxDirtyBuffers": str(args.max_dirty_buffers),
         "VIRT_Parameters_NumberOfBuffers": str(args.number_of_buffers),
-        "VIRT_Parameters_DirsAllowed": dirs_allowed_value,
+        "VIRT_Parameters_DirsAllowed": ",".join(paths_to_allow_in_container),
         "VIRT_SPARQL_DefaultQuery": "SELECT (COUNT(*) AS ?quadCount) WHERE { GRAPH ?g { ?s ?p ?o } }"
     }
     
+    # Set MaxCheckpointRemap environment variables if estimated size is provided
+    if args.estimated_db_size_gb > 0:
+        estimated_size_bytes = int(args.estimated_db_size_gb * 1024**3)
+        if estimated_size_bytes >= MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP:
+            max_checkpoint_remap = calculate_max_checkpoint_remap(estimated_size_bytes)
+            env_vars["VIRT_Database_MaxCheckpointRemap"] = str(max_checkpoint_remap)
+            env_vars["VIRT_TempDatabase_MaxCheckpointRemap"] = str(max_checkpoint_remap)
+            print(f"Info: Using estimated database size of {args.estimated_db_size_gb} GB to set MaxCheckpointRemap to {max_checkpoint_remap}")
+
     for key, value in env_vars.items():
         cmd.extend(["-e", f"{key}={value}"])
     
@@ -396,7 +528,7 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
         image_name = f"{image_name}:{args.version}"
     cmd.append(image_name)
     
-    return cmd, unique_paths_list
+    return cmd, paths_to_allow_in_container
 
 
 def wait_for_virtuoso_ready(
@@ -506,6 +638,13 @@ def main() -> int:
         return 1
 
     host_data_dir_abs = os.path.abspath(args.data_dir)
+    ini_file_path = os.path.join(host_data_dir_abs, "virtuoso.ini")
+
+    # --- Attempt to update INI before checking/removing container ---
+    # This ensures the update happens based on the current state *before* we potentially remove
+    # a stopped container or error out because one is running.
+    update_ini_max_checkpoint_remap(ini_file_path, host_data_dir_abs)
+    # --- End INI update attempt ---
 
     container_exists = check_container_exists(args.name)
 

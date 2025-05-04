@@ -9,14 +9,14 @@ A collection of Python utilities for interacting with OpenLink Virtuoso.
 - [Usage](#usage)
   - [Virtuoso Docker Launcher](#virtuoso-docker-launcher-launch_virtuosopy)
     - [Memory-Based Configuration](#memory-based-configuration)
-  - [Parallel Bulk Loader](#parallel-bulk-loader-bulk_load_parallelpy)
+  - [Sequential Bulk Loader](#sequential-bulk-loader-bulk_loadpy)
     - [Performance Note: Why only `.nq.gz`?](#performance-note-why-only-nqgz)
 
 ## Features
 
-*   **Parallel Bulk Loading:** The `bulk_load_parallel.py` script provides a parallel method to load N-Quads files (`*.nq`, `*.nq.gz`, etc.) into Virtuoso. It finds files within a specified directory (either locally or inside a Docker container) and uses multiple processes to execute the `TTLP` function directly on each file for efficient loading.
+*   **Sequential Bulk Loading:** The `bulk_load.py` script provides a sequential method to load N-Quads Gzipped files (`*.nq.gz`) into Virtuoso. It finds files within a specified directory (either locally or inside a Docker container) and uses the official Virtuoso `ld_dir`/`ld_dir_all` and `rdf_loader_run` methods for efficient loading.
 *   **Docker Support:** Seamlessly integrates with Virtuoso running in a Docker container by executing `isql` commands via `docker exec`.
-*   **Flexible Configuration:** Allows customization of Virtuoso connection details, number of parallel loaders, file patterns, and paths to `isql` and `docker` executables.
+*   **Flexible Configuration:** Allows customization of Virtuoso connection details, file patterns, and paths to `isql` and `docker` executables.
 *   **Virtuoso Docker Launcher:** The `launch_virtuoso.py` script provides a convenient way to launch a Virtuoso database using Docker with customizable configuration parameters, including automatic memory tuning and volume mounts. It also sets the `DirsAllowed` parameter in the container based on mounted volumes.
 
 ## Installation
@@ -72,7 +72,7 @@ Use `poetry run python virtuoso_utilities/launch_virtuoso.py --help` to see all 
 *   `--version`: Version tag for the Virtuoso Docker image (Default: `latest`).
 *   `--http-port`: HTTP port to expose Virtuoso on (Default: `8890`).
 *   `--isql-port`: ISQL port to expose Virtuoso on (Default: `1111`).
-*   `--data-dir`: Host directory to mount as Virtuoso data directory (Default: `./virtuoso-data`).
+*   `--data-dir`: Host directory to mount as Virtuoso data directory (Default: `./virtuoso-data`). This directory is used to automatically calculate `MaxCheckpointRemap` if its size exceeds 1 GiB.
 *   `--container-data-dir`: Path inside container where data will be stored (Default: `/opt/virtuoso-opensource/database`).
 *   `--mount-volume HOST_PATH:CONTAINER_PATH`: Mount an additional host directory into the container. Format: `/path/on/host:/path/in/container`. Can be specified multiple times. Useful for making data files (e.g., RDF) available to the bulk loader. Paths mounted here are automatically added to the `DirsAllowed` setting in the container's environment.
 *   `--memory`: Memory limit for the container (e.g., `2g`, `4g`). It defaults to approx. 2/3 of host RAM if `psutil` is installed, otherwise `2g`. You can manually override this calculated default.
@@ -81,6 +81,7 @@ Use `poetry run python virtuoso_utilities/launch_virtuoso.py --help` to see all 
 *   `--max-rows`: ResultSet maximum number of rows (Default: `100000`).
 *   `--max-dirty-buffers`: Maximum dirty buffers before checkpoint. Auto-calculated based on the final `--memory` value (either the default or the one you provided).
 *   `--number-of-buffers`: Number of buffers. Auto-calculated based on the final `--memory` value (either the default or the one you provided).
+*   `--estimated-db-size-gb`: Estimated database size in GB. If provided and >= 1 GB, `MaxCheckpointRemap` will be preconfigured via environment variables rather than measuring existing data. Useful for new deployments when you can estimate the final database size.
 *   `--wait-ready`: Wait until Virtuoso is ready to accept connections.
 *   `--detach`: Run container in detached mode.
 *   `--force-remove`: Force removal of existing container with the same name.
@@ -104,9 +105,29 @@ The script aims to simplify memory configuration based on Virtuoso best practice
 
 3.  **Allowed Directories (`DirsAllowed`):** The script automatically constructs the `VIRT_Parameters_DirsAllowed` environment variable passed to the container. It includes the container data directory (`--container-data-dir`) and any paths specified via `--mount-volume`, along with Virtuoso's default required paths. This ensures that Virtuoso has permission to access the mounted data directories.
 
-For more detailed information on Virtuoso performance tuning, refer to the [official OpenLink documentation](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692).
+**Automatic `MaxCheckpointRemap` Configuration:**
 
-### Sequential Bulk Loader (`bulk_load_parallel.py`)
+For large databases (> 1 GiB), Virtuoso recommends tuning the `MaxCheckpointRemap` parameter. This script offers two methods to configure this important parameter:
+
+1. **For existing databases (default behavior):**
+   * Before starting the container, the script checks for an existing `virtuoso.ini` file within the host directory specified by `--data-dir`.
+   * If the `virtuoso.ini` file is found and the total size of the `--data-dir` exceeds 1 GiB, the script calculates the recommended `MaxCheckpointRemap` value (1/4th of the total size in 8K pages).
+   * It then reads the `virtuoso.ini` file and **directly modifies** the `MaxCheckpointRemap` value under both the `[Database]` and `[TempDatabase]` sections if the calculated value differs from the existing one.
+   * The modified `virtuoso.ini` is saved back to the host directory.
+   * The container then starts, reading the updated configuration from the file.
+
+2. **For new deployments with known expected size (`--estimated-db-size-gb`):**
+   * When starting a new Virtuoso instance where you can estimate the final database size, you can use the `--estimated-db-size-gb` parameter.
+   * If the estimated size is >= 1 GB, the script calculates the appropriate `MaxCheckpointRemap` value (1/4th of the estimated size in 8K pages).
+   * This value is then passed directly to the container via environment variables (`VIRT_Database_MaxCheckpointRemap` and `VIRT_TempDatabase_MaxCheckpointRemap`).
+   * No direct file modification is needed, as Virtuoso will use these environment variables when initializing.
+   * Example: `--estimated-db-size-gb 100` for an expected 100 GB database.
+
+This automation simplifies tuning `MaxCheckpointRemap` based on the actual database size.
+
+For more detailed information on Virtuoso performance tuning, refer to the [official OpenLink documentation](https://docs.openlinksw.com/virtuoso/rdfperformancetuning/).
+
+### Sequential Bulk Loader (`bulk_load.py`)
 
 This script offers a sequential method to load N-Quads Gzipped files (`*.nq.gz`) into a Virtuoso instance using the standard Virtuoso bulk loading procedure (`ld_dir`/`ld_dir_all` followed by `rdf_loader_run`).
 
@@ -129,7 +150,7 @@ Therefore, for optimal bulk loading performance with Virtuoso's `ld_dir`/`rdf_lo
 **Basic Usage (Host Virtuoso):**
 
 ```bash
-poetry run python virtuoso_utilities/bulk_load_parallel.py \\\\
+poetry run python virtuoso_utilities/bulk_load.py \\\\
     -d /path/accessible/by/virtuoso/server \\\\
     -k <your_virtuoso_password>
 ```
@@ -137,13 +158,12 @@ poetry run python virtuoso_utilities/bulk_load_parallel.py \\\\
 **Customized Usage (Host Virtuoso):**
 
 ```bash
-poetry run python virtuoso_utilities/bulk_load_parallel.py \\\\
+poetry run python virtuoso_utilities/bulk_load.py \\\\
     -d /path/accessible/by/virtuoso/server \\\\
     -k <your_virtuoso_password> \\\\
     --host <virtuoso_host> \\\\
     --port <virtuoso_port> \\\\
     --user <virtuoso_user> \\\\
-    --file-pattern "*.nq.gz" \\\\
     --recursive
 ```
 
@@ -158,7 +178,7 @@ poetry run python virtuoso_utilities/launch_virtuoso.py \
     --mount-volume /home/user/my_rdf_data:/rdf_mount_in_container
 
 # Then run the bulk loader (note: no --file-pattern needed)
-poetry run python virtuoso_utilities/bulk_load_parallel.py \
+poetry run python virtuoso_utilities/bulk_load.py \
     -d /rdf_mount_in_container \\ # Path INSIDE CONTAINER
     -k <your_virtuoso_password> \\
     --port 1112 \\ # Use the mapped ISQL port
@@ -169,7 +189,7 @@ poetry run python virtuoso_utilities/bulk_load_parallel.py \
 
 **Arguments:**
 
-Use `poetry run python virtuoso_utilities/bulk_load_parallel.py --help` to see all available options:
+Use `poetry run python virtuoso_utilities/bulk_load.py --help` to see all available options:
 
 *   `-d`, `--data-directory`: **Required.** Path where the script will search for N-Quads Gzipped (`.nq.gz`) files to register using `ld_dir` or `ld_dir_all`. **Meaning depends on context:**
     *   If using Docker (`--docker-container`): This must be the **absolute path inside the container** (e.g., `/rdf_mount_in_container`) accessible by Virtuoso.
