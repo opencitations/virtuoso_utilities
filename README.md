@@ -68,17 +68,13 @@ poetry run python virtuoso_utilities/launch_virtuoso.py \
 Use `poetry run python virtuoso_utilities/launch_virtuoso.py --help` to see all available options:
 
 *   `--name`: Name for the Docker container (Default: `virtuoso`).
-*   `--image`: Docker image to use (Default: `openlink/virtuoso-opensource-7@sha256:e07868a3db9090400332eaa8ee694b8cf9bf7eebc26db6bbdc3bb92fd30ed010`).
-*   `--version`: Version tag for the Virtuoso Docker image (Default: `latest`).
 *   `--http-port`: HTTP port to expose Virtuoso on (Default: `8890`).
 *   `--isql-port`: ISQL port to expose Virtuoso on (Default: `1111`).
 *   `--data-dir`: Host directory to mount as Virtuoso data directory (Default: `./virtuoso-data`). This directory is used to automatically calculate `MaxCheckpointRemap` if its size exceeds 1 GiB.
-*   `--container-data-dir`: Path inside container where data will be stored (Default: `/opt/virtuoso-opensource/database`).
 *   `--mount-volume HOST_PATH:CONTAINER_PATH`: Mount an additional host directory into the container. Format: `/path/on/host:/path/in/container`. Can be specified multiple times. Useful for making data files (e.g., RDF) available to the bulk loader. Paths mounted here are automatically added to the `DirsAllowed` setting in the container's environment.
 *   `--memory`: Memory limit for the container (e.g., `2g`, `4g`). It defaults to approx. 2/3 of host RAM if `psutil` is installed, otherwise `2g`. You can manually override this calculated default.
 *   `--cpu-limit`: CPU limit for the container, 0 means no limit (Default: `0`).
 *   `--dba-password`: Password for the Virtuoso dba user (Default: `dba`).
-*   `--max-rows`: ResultSet maximum number of rows (Default: `100000`).
 *   `--max-dirty-buffers`: Maximum dirty buffers before checkpoint. Auto-calculated based on the final `--memory` value (either the default or the one you provided).
 *   `--number-of-buffers`: Number of buffers. Auto-calculated based on the final `--memory` value (either the default or the one you provided).
 *   `--estimated-db-size-gb`: Estimated database size in GB. If provided and >= 1 GB, `MaxCheckpointRemap` will be preconfigured via environment variables rather than measuring existing data. Useful for new deployments when you can estimate the final database size.
@@ -103,7 +99,7 @@ The script aims to simplify memory configuration based on Virtuoso best practice
     ```
     These values are passed as environment variables (`VIRT_Parameters_NumberOfBuffers`, `VIRT_Parameters_MaxDirtyBuffers`) to the container. You can still manually override these calculated values using the `--number-of-buffers` and `--max-dirty-buffers` arguments if needed for specific tuning requirements.
 
-3.  **Allowed Directories (`DirsAllowed`):** The script automatically constructs the `VIRT_Parameters_DirsAllowed` environment variable passed to the container. It includes the container data directory (`--container-data-dir`) and any paths specified via `--mount-volume`, along with Virtuoso's default required paths. This ensures that Virtuoso has permission to access the mounted data directories.
+3.  **Allowed Directories (`DirsAllowed`):** The script automatically constructs the `VIRT_Parameters_DirsAllowed` environment variable passed to the container. It includes the container data directory (hardcoded to `/opt/virtuoso-opensource/database`) and any paths specified via `--mount-volume`, along with Virtuoso's default required paths. This ensures that Virtuoso has permission to access the mounted data directories.
 
 **Automatic `MaxCheckpointRemap` Configuration:**
 

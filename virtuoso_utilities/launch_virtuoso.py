@@ -21,6 +21,11 @@ DEFAULT_WAIT_TIMEOUT = 120
 DOCKER_EXEC_PATH = "docker"
 DOCKER_ISQL_PATH_INSIDE_CONTAINER = "isql"
 
+# Default values for container configuration
+DEFAULT_IMAGE = "openlink/virtuoso-opensource-7@sha256:e07868a3db9090400332eaa8ee694b8cf9bf7eebc26db6bbdc3bb92fd30ed010"
+DEFAULT_CONTAINER_DATA_DIR = "/opt/virtuoso-opensource/database"
+DEFAULT_MAX_ROWS = 100000
+
 from virtuoso_utilities.isql_helpers import run_isql_command
 
 # Minimum database size in bytes to trigger MaxCheckpointRemap calculation
@@ -261,17 +266,6 @@ def parse_arguments() -> argparse.Namespace:
         help="Name for the Docker container"
     )
     parser.add_argument(
-        "--image", 
-        default="openlink/virtuoso-opensource-7@sha256:e07868a3db9090400332eaa8ee694b8cf9bf7eebc26db6bbdc3bb92fd30ed010",
-        help="Docker image to use for Virtuoso"
-    )
-    parser.add_argument(
-        "--version", 
-        default="latest",
-        help="Version tag for the Virtuoso Docker image"
-    )
-    
-    parser.add_argument(
         "--http-port", 
         type=int, 
         default=8890,
@@ -288,11 +282,6 @@ def parse_arguments() -> argparse.Namespace:
         "--data-dir", 
         default="./virtuoso-data",
         help="Host directory to mount as Virtuoso data directory"
-    )
-    parser.add_argument(
-        "--container-data-dir", 
-        default="/opt/virtuoso-opensource/database",
-        help="Path inside container where data will be stored"
     )
     
     parser.add_argument(
@@ -322,12 +311,6 @@ def parse_arguments() -> argparse.Namespace:
         "--dba-password", 
         default="dba",
         help="Password for the Virtuoso dba user"
-    )
-    parser.add_argument(
-        "--max-rows", 
-        type=int, 
-        default=100000,
-        help="ResultSet maximum number of rows"
     )
     
     parser.add_argument(
@@ -465,7 +448,7 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
     cmd.extend(["-p", f"{args.isql_port}:1111"])
     
     # Ensure container_data_dir is absolute-like for consistency
-    container_data_dir_path = args.container_data_dir if args.container_data_dir.startswith('/') else '/' + args.container_data_dir
+    container_data_dir_path = DEFAULT_CONTAINER_DATA_DIR
     cmd.extend(["-v", f"{host_data_dir_abs}:{container_data_dir_path}"])
 
     # Mount additional volumes
@@ -496,7 +479,7 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
     
     env_vars = {
         "DBA_PASSWORD": args.dba_password,
-        "VIRT_Parameters_ResultSetMaxRows": str(args.max_rows),
+        "VIRT_Parameters_ResultSetMaxRows": str(DEFAULT_MAX_ROWS),
         "VIRT_Parameters_MaxDirtyBuffers": str(args.max_dirty_buffers),
         "VIRT_Parameters_NumberOfBuffers": str(args.number_of_buffers),
         "VIRT_Parameters_DirsAllowed": ",".join(paths_to_allow_in_container),
@@ -522,11 +505,8 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
     if not args.detach:
         cmd.insert(2, "--rm") # Insert after "docker run"
     
-    # Append image name, adding version tag only if no SHA digest is present
-    image_name = args.image
-    if '@sha256:' not in image_name:
-        image_name = f"{image_name}:{args.version}"
-    cmd.append(image_name)
+    # Append image name
+    cmd.append(DEFAULT_IMAGE)
     
     return cmd, paths_to_allow_in_container
 
@@ -697,7 +677,7 @@ def main() -> int:
         print(f"""
 Virtuoso launched successfully!
 - Data Directory Host: {host_data_dir_abs}
-- Data Directory Container: {args.container_data_dir}
+- Data Directory Container: {DEFAULT_CONTAINER_DATA_DIR}
 - Web interface: http://localhost:{args.http_port}/conductor
 - ISQL access (Host): isql localhost:{args.isql_port} dba {args.dba_password}
 - ISQL access (Inside container): isql localhost:1111 dba {args.dba_password}

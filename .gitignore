@@ -2,4 +2,5 @@
 __pycache__
 virtuoso-meta-prov
 .cursor
-virtuoso-data
+virtuoso-data*
+virtuoso-meta*
