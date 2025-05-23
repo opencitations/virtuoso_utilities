@@ -153,60 +153,86 @@ def calculate_max_checkpoint_remap(size_bytes: int) -> int:
     return int(size_bytes / 8192 / 4)
 
 
-def update_ini_max_checkpoint_remap(ini_path: str, data_dir_path: str):
+def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buffers: int = None, max_dirty_buffers: int = None):
     """
-    Attempts to update the MaxCheckpointRemap value in the virtuoso.ini file
-    based on the actual size of the data directory.
+    Updates memory-related settings in the virtuoso.ini file:
+    - MaxCheckpointRemap: based on the actual size of the data directory
+    - NumberOfBuffers: if provided
+    - MaxDirtyBuffers: if provided
 
     Args:
         ini_path: The full path to the virtuoso.ini file.
-        data_dir_path: The path to the data directory to measure.
+        data_dir_path: The path to the data directory to measure for MaxCheckpointRemap.
+        number_of_buffers: Optional value for NumberOfBuffers setting.
+        max_dirty_buffers: Optional value for MaxDirtyBuffers setting.
     """
     if not os.path.exists(ini_path):
-        print(f"Info: virtuoso.ini not found at '{ini_path}'. Likely first run. Skipping MaxCheckpointRemap update.")
+        print(f"Info: virtuoso.ini not found at '{ini_path}'. Likely first run. Skipping settings update.")
         return
 
-    print(f"Info: Checking existing virtuoso.ini at '{ini_path}' for MaxCheckpointRemap update...")
+    print(f"Info: Checking existing virtuoso.ini at '{ini_path}' for settings update...")
     actual_db_size_bytes = get_directory_size(data_dir_path)
 
-    if actual_db_size_bytes < MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP:
-        print(f"Info: Host data directory '{data_dir_path}' size ({actual_db_size_bytes / (1024**3):.2f} GiB) is below threshold ({MIN_DB_SIZE_FOR_CHECKPOINT_REMAP_GB} GiB). No changes made to MaxCheckpointRemap in virtuoso.ini.")
-        return
+    # Calculate MaxCheckpointRemap if database is large enough
+    calculate_remap = actual_db_size_bytes >= MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP
+    calculated_remap_value = calculate_max_checkpoint_remap(actual_db_size_bytes) if calculate_remap else None
 
-    calculated_remap_value = calculate_max_checkpoint_remap(actual_db_size_bytes)
-    if calculated_remap_value <= 0:
-        print(f"Warning: Calculated MaxCheckpointRemap based on DB size ({actual_db_size_bytes} bytes) is zero or negative. No changes made to virtuoso.ini.", file=sys.stderr)
-        return
-
-    config = configparser.ConfigParser(interpolation=None)
+    config = configparser.ConfigParser(interpolation=None, strict=False)
     config.optionxform = str # Keep case sensitivity
     made_changes = False
     try:
         # Read with UTF-8, ignore errors initially if file has issues
         config.read(ini_path, encoding='utf-8')
 
-        current_db_remap = config.get('Database', 'MaxCheckpointRemap', fallback=None)
-        current_temp_db_remap = config.get('TempDatabase', 'MaxCheckpointRemap', fallback=None)
+        # Update [Parameters] section for buffer settings
+        if not config.has_section('Parameters'):
+            config.add_section('Parameters')
+            print(f"Info: Added [Parameters] section to '{ini_path}'.")
+        
+        # Update NumberOfBuffers if provided
+        if number_of_buffers is not None:
+            current_number_of_buffers = config.get('Parameters', 'NumberOfBuffers', fallback=None)
+            number_of_buffers_str = str(number_of_buffers)
+            if current_number_of_buffers != number_of_buffers_str:
+                config.set('Parameters', 'NumberOfBuffers', number_of_buffers_str)
+                print(f"Info: Updating [Parameters] NumberOfBuffers from '{current_number_of_buffers}' to '{number_of_buffers_str}' in '{ini_path}'.")
+                made_changes = True
 
-        calculated_remap_str = str(calculated_remap_value)
+        # Update MaxDirtyBuffers if provided
+        if max_dirty_buffers is not None:
+            current_max_dirty_buffers = config.get('Parameters', 'MaxDirtyBuffers', fallback=None)
+            max_dirty_buffers_str = str(max_dirty_buffers)
+            if current_max_dirty_buffers != max_dirty_buffers_str:
+                config.set('Parameters', 'MaxDirtyBuffers', max_dirty_buffers_str)
+                print(f"Info: Updating [Parameters] MaxDirtyBuffers from '{current_max_dirty_buffers}' to '{max_dirty_buffers_str}' in '{ini_path}'.")
+                made_changes = True
 
-        # Update [Database] section
-        if not config.has_section('Database'):
-            config.add_section('Database')
-            print(f"Info: Added [Database] section to '{ini_path}'.")
-        if current_db_remap != calculated_remap_str:
-            config.set('Database', 'MaxCheckpointRemap', calculated_remap_str)
-            print(f"Info: Updating [Database] MaxCheckpointRemap from '{current_db_remap}' to '{calculated_remap_str}' in '{ini_path}'.")
-            made_changes = True
+        # Update MaxCheckpointRemap if database is large enough
+        if calculate_remap:
+            # Update [Database] section
+            if not config.has_section('Database'):
+                config.add_section('Database')
+                print(f"Info: Added [Database] section to '{ini_path}'.")
+            
+            current_db_remap = config.get('Database', 'MaxCheckpointRemap', fallback=None)
+            calculated_remap_str = str(calculated_remap_value)
+            if current_db_remap != calculated_remap_str:
+                config.set('Database', 'MaxCheckpointRemap', calculated_remap_str)
+                print(f"Info: Updating [Database] MaxCheckpointRemap from '{current_db_remap}' to '{calculated_remap_str}' in '{ini_path}'.")
+                made_changes = True
 
-        # Update [TempDatabase] section
-        if not config.has_section('TempDatabase'):
-             config.add_section('TempDatabase')
-             print(f"Info: Added [TempDatabase] section to '{ini_path}'.")
-        if current_temp_db_remap != calculated_remap_str:
-            config.set('TempDatabase', 'MaxCheckpointRemap', calculated_remap_str)
-            print(f"Info: Updating [TempDatabase] MaxCheckpointRemap from '{current_temp_db_remap}' to '{calculated_remap_str}' in '{ini_path}'.")
-            made_changes = True
+            # Update [TempDatabase] section
+            if not config.has_section('TempDatabase'):
+                config.add_section('TempDatabase')
+                print(f"Info: Added [TempDatabase] section to '{ini_path}'.")
+            
+            current_temp_db_remap = config.get('TempDatabase', 'MaxCheckpointRemap', fallback=None)
+            if current_temp_db_remap != calculated_remap_str:
+                config.set('TempDatabase', 'MaxCheckpointRemap', calculated_remap_str)
+                print(f"Info: Updating [TempDatabase] MaxCheckpointRemap from '{current_temp_db_remap}' to '{calculated_remap_str}' in '{ini_path}'.")
+                made_changes = True
+        else:
+            print(f"Info: Host data directory '{data_dir_path}' size ({actual_db_size_bytes / (1024**3):.2f} GiB) is below threshold ({MIN_DB_SIZE_FOR_CHECKPOINT_REMAP_GB} GiB). No changes made to MaxCheckpointRemap in virtuoso.ini.")
 
         if made_changes:
             # Write changes back with UTF-8 encoding
@@ -214,7 +240,7 @@ def update_ini_max_checkpoint_remap(ini_path: str, data_dir_path: str):
                 config.write(configfile)
             print(f"Info: Successfully saved changes to '{ini_path}'.")
         else:
-            print(f"Info: Calculated MaxCheckpointRemap ('{calculated_remap_str}') matches existing values in '{ini_path}'. No changes needed.")
+            print(f"Info: No changes needed in '{ini_path}'.")
 
     except configparser.Error as e:
         print(f"Error: Failed to parse or update virtuoso.ini at '{ini_path}': {e}", file=sys.stderr)
@@ -231,6 +257,13 @@ def parse_arguments() -> argparse.Namespace:
     Returns:
         argparse.Namespace: Parsed command-line arguments
     """
+    # First create a parser for a preliminary parse to check if --memory is provided
+    preliminary_parser = argparse.ArgumentParser(add_help=False)
+    preliminary_parser.add_argument("--memory", default=None)
+    preliminary_args, _ = preliminary_parser.parse_known_args()
+    memory_specified = preliminary_args.memory is not None
+    
+    # Full parser with all arguments
     parser = argparse.ArgumentParser(
         description="Launch a Virtuoso database using Docker",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -238,7 +271,7 @@ def parse_arguments() -> argparse.Namespace:
     
     # --- Calculate default memory based on host RAM (2/3) ---
     default_memory_str = "2g" # Fallback default
-    if psutil:
+    if psutil and not memory_specified:
         try:
             total_host_ram = psutil.virtual_memory().total
             # Calculate 2/3 of total RAM in bytes
@@ -255,6 +288,9 @@ def parse_arguments() -> argparse.Namespace:
         except Exception as e:
             print(f"Warning: Could not auto-detect host RAM using psutil: {e}. "
                   f"Falling back to default memory limit '{default_memory_str}'.", file=sys.stderr)
+    elif psutil and memory_specified:
+        # Silently use the user-specified value
+        pass
     else:
          print(f"Warning: psutil not found. Cannot auto-detect host RAM. "
                f"Falling back to default memory limit '{default_memory_str}'. "
@@ -623,7 +659,7 @@ def main() -> int:
     # --- Attempt to update INI before checking/removing container ---
     # This ensures the update happens based on the current state *before* we potentially remove
     # a stopped container or error out because one is running.
-    update_ini_max_checkpoint_remap(ini_file_path, host_data_dir_abs)
+    update_ini_memory_settings(ini_file_path, host_data_dir_abs, args.number_of_buffers, args.max_dirty_buffers)
     # --- End INI update attempt ---
 
     container_exists = check_container_exists(args.name)
