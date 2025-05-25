@@ -11,13 +11,15 @@ A collection of Python utilities for interacting with OpenLink Virtuoso.
     - [Memory-Based Configuration](#memory-based-configuration)
   - [Sequential Bulk Loader](#sequential-bulk-loader-bulk_loadpy)
     - [Performance Note: Why only `.nq.gz`?](#performance-note-why-only-nqgz)
+  - [Full-Text Index Rebuilder](#full-text-index-rebuilder-rebuild_fulltext_indexpy)
 
 ## Features
 
-*   **Sequential Bulk Loading:** The `bulk_load.py` script provides a sequential method to load N-Quads Gzipped files (`*.nq.gz`) into Virtuoso. It finds files within a specified directory (either locally or inside a Docker container) and uses the official Virtuoso `ld_dir`/`ld_dir_all` and `rdf_loader_run` methods for efficient loading.
+*   **Sequential Bulk Loading:** The [`bulk_load.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/bulk_load.py) script provides a sequential method to load N-Quads Gzipped files (`*.nq.gz`) into Virtuoso. It finds files within a specified directory (either locally or inside a Docker container) and uses the official Virtuoso `ld_dir`/`ld_dir_all` and `rdf_loader_run` methods for efficient loading.
 *   **Docker Support:** Seamlessly integrates with Virtuoso running in a Docker container by executing `isql` commands via `docker exec`.
 *   **Flexible Configuration:** Allows customization of Virtuoso connection details, file patterns, and paths to `isql` and `docker` executables.
-*   **Virtuoso Docker Launcher:** The `launch_virtuoso.py` script provides a convenient way to launch a Virtuoso database using Docker with customizable configuration parameters, including automatic memory tuning and volume mounts. It also sets the `DirsAllowed` parameter in the container based on mounted volumes.
+*   **Virtuoso Docker Launcher:** The [`launch_virtuoso.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/launch_virtuoso.py) script provides a convenient way to launch a Virtuoso database using Docker with customizable configuration parameters, including automatic memory tuning and volume mounts. It also sets the `DirsAllowed` parameter in the container based on mounted volumes.
+*   **Full-Text Index Rebuilder:** The [`rebuild_fulltext_index.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/rebuild_fulltext_index.py) script provides a utility to rebuild the Virtuoso full-text index, which is used for optimal querying of RDF object values using the `bif:contains` function in SPARQL queries.
 
 ## Installation
 
@@ -37,7 +39,7 @@ You also need the Virtuoso `isql` client installed on your host system or access
 
 ## Usage
 
-### Virtuoso Docker Launcher (`launch_virtuoso.py`)
+### Virtuoso Docker Launcher ([`launch_virtuoso.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/launch_virtuoso.py))
 
 The script provides a convenient way to launch a Virtuoso database using Docker with various configurable parameters.
 
@@ -123,7 +125,7 @@ This automation simplifies tuning `MaxCheckpointRemap` based on the actual datab
 
 For more detailed information on Virtuoso performance tuning, refer to the [official OpenLink documentation](https://docs.openlinksw.com/virtuoso/rdfperformancetuning/).
 
-### Sequential Bulk Loader (`bulk_load.py`)
+### Sequential Bulk Loader ([`bulk_load.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/bulk_load.py))
 
 This script offers a sequential method to load N-Quads Gzipped files (`*.nq.gz`) into a Virtuoso instance using the standard Virtuoso bulk loading procedure (`ld_dir`/`ld_dir_all` followed by `rdf_loader_run`).
 
@@ -199,6 +201,48 @@ Use `poetry run python virtuoso_utilities/bulk_load.py --help` to see all availa
 *   `--checkpoint-interval`: Interval (seconds) to set for Virtuoso checkpointing *after* the bulk load completes (Default: `60`).
 *   `--scheduler-interval`: Interval (seconds) to set for the Virtuoso scheduler *after* the bulk load completes (Default: `10`).
 *   `--isql-path`: Path to `isql` on the host system (Default: `isql`). Used only if not in Docker mode.
+
+### Full-Text Index Rebuilder ([`rebuild_fulltext_index.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/rebuild_fulltext_index.py))
+
+This script provides a utility to rebuild the Virtuoso full-text index, which is essential for optimal querying of RDF object values using the `bif:contains` function in SPARQL queries. The implementation is based on the official [OpenLink Software documentation](https://community.openlinksw.com/t/how-to-rebuild-virtuoso-full-text-index/2697).
+
+**Why rebuild the Full-Text index?**
+
+In some cases, the Full-Text index may need to be recreated if unexpected results are returned when using the `bif:contains` Full-Text index search function in SPARQL queries. The Virtuoso RDF Quad store supports optional Full-Text indexing of RDF object values, providing much better performance compared to the SPARQL `regex` feature, which is very inefficient in most cases.
+
+**IMPORTANT:** Always ensure you have a full backup of your database before running this script, as it involves dropping and recreating database tables.
+
+**What the script does:**
+
+1. Drops the existing full-text index tables
+2. Recreates the index structure
+3. Refills the index with data
+
+**Note:** After this process completes, the Virtuoso database **MUST** be restarted for the index rebuild to take effect.
+
+**Basic Usage:**
+
+```bash
+poetry run python virtuoso_utilities/rebuild_fulltext_index.py --password <your_virtuoso_password>
+```
+
+**Usage with Docker:**
+
+```bash
+poetry run python virtuoso_utilities/rebuild_fulltext_index.py \
+    --password <your_virtuoso_password> \
+    --docker-container my-virtuoso
+```
+
+**Arguments:**
+
+Use `poetry run python virtuoso_utilities/rebuild_fulltext_index.py --help` to see all available options:
+
+*   `--host`: Virtuoso host (Default: `localhost`).
+*   `--port`: Virtuoso ISQL port (Default: `1111`).
+*   `--user`: Virtuoso username (Default: `dba`).
+*   `--password`: Virtuoso password (Default: `dba`).
+*   `--docker-container`: Optional Docker container name/ID to execute ISQL inside.
 *   `--docker-container`: Name or ID of the running Virtuoso Docker container. If specified, `isql` commands are run via `docker exec`, and `-d` refers to the path *inside* the container.
 *   `--docker-isql-path`: Path to the `isql` executable *inside* the Docker container (Default: `isql`, often needs to be `/opt/virtuoso-opensource/bin/isql`).
 *   `--docker-path`: Path to the `docker` executable on the host system (Default: `docker`).
