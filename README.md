@@ -15,11 +15,11 @@ A collection of Python utilities for interacting with OpenLink Virtuoso.
 
 ## Features
 
-*   **Sequential Bulk Loading:** The [`bulk_load.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/bulk_load.py) script provides a sequential method to load N-Quads Gzipped files (`*.nq.gz`) into Virtuoso. It finds files within a specified directory (either locally or inside a Docker container) and uses the official Virtuoso `ld_dir`/`ld_dir_all` and `rdf_loader_run` methods for efficient loading.
+*   **Sequential Bulk Loading:** The [`bulk_load.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/bulk_load.py) script provides a sequential method to load N-Quads Gzipped files (`*.nq.gz`) into Virtuoso. It finds files within a specified directory (either locally or inside a Docker container) and uses the official Virtuoso `ld_dir`/`ld_dir_all` and `rdf_loader_run` methods for efficient loading.
 *   **Docker Support:** Seamlessly integrates with Virtuoso running in a Docker container by executing `isql` commands via `docker exec`.
 *   **Flexible Configuration:** Allows customization of Virtuoso connection details, file patterns, and paths to `isql` and `docker` executables.
-*   **Virtuoso Docker Launcher:** The [`launch_virtuoso.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/launch_virtuoso.py) script provides a convenient way to launch a Virtuoso database using Docker with customizable configuration parameters, including automatic memory tuning and volume mounts. It also sets the `DirsAllowed` parameter in the container based on mounted volumes.
-*   **Full-Text Index Rebuilder:** The [`rebuild_fulltext_index.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/rebuild_fulltext_index.py) script provides a utility to rebuild the Virtuoso full-text index, which is used for optimal querying of RDF object values using the `bif:contains` function in SPARQL queries.
+*   **Virtuoso Docker Launcher:** The [`launch_virtuoso.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/launch_virtuoso.py) script provides a convenient way to launch a Virtuoso database using Docker with customizable configuration parameters, including automatic memory tuning and volume mounts. It also sets the `DirsAllowed` parameter in the container based on mounted volumes.
+*   **Full-Text Index Rebuilder:** The [`rebuild_fulltext_index.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/rebuild_fulltext_index.py) script provides a utility to rebuild the Virtuoso full-text index, which is used for optimal querying of RDF object values using the `bif:contains` function in SPARQL queries.
 
 ## Installation
 
@@ -39,7 +39,7 @@ You also need the Virtuoso `isql` client installed on your host system or access
 
 ## Usage
 
-### Virtuoso Docker Launcher ([`launch_virtuoso.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/launch_virtuoso.py))
+### Virtuoso Docker Launcher ([`launch_virtuoso.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/launch_virtuoso.py))
 
 The script provides a convenient way to launch a Virtuoso database using Docker with various configurable parameters.
 
@@ -125,7 +125,7 @@ This automation simplifies tuning `MaxCheckpointRemap` based on the actual datab
 
 For more detailed information on Virtuoso performance tuning, refer to the [official OpenLink documentation](https://docs.openlinksw.com/virtuoso/rdfperformancetuning/).
 
-### Sequential Bulk Loader ([`bulk_load.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/bulk_load.py))
+### Sequential Bulk Loader ([`bulk_load.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/bulk_load.py))
 
 This script offers a sequential method to load N-Quads Gzipped files (`*.nq.gz`) into a Virtuoso instance using the standard Virtuoso bulk loading procedure (`ld_dir`/`ld_dir_all` followed by `rdf_loader_run`).
 
@@ -202,7 +202,7 @@ Use `poetry run python virtuoso_utilities/bulk_load.py --help` to see all availa
 *   `--scheduler-interval`: Interval (seconds) to set for the Virtuoso scheduler *after* the bulk load completes (Default: `10`).
 *   `--isql-path`: Path to `isql` on the host system (Default: `isql`). Used only if not in Docker mode.
 
-### Full-Text Index Rebuilder ([`rebuild_fulltext_index.py`](https://github.com/opencitations/virtuoso_utilities/blob/main/virtuoso_utilities/rebuild_fulltext_index.py))
+### Full-Text Index Rebuilder ([`rebuild_fulltext_index.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/rebuild_fulltext_index.py))
 
 This script provides a utility to rebuild the Virtuoso full-text index, which is essential for optimal querying of RDF object values using the `bif:contains` function in SPARQL queries. The implementation is based on the official [OpenLink Software documentation](https://community.openlinksw.com/t/how-to-rebuild-virtuoso-full-text-index/2697).
 
