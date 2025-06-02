@@ -11,11 +11,13 @@ A collection of Python utilities for interacting with OpenLink Virtuoso.
     - [Memory-Based Configuration](#memory-based-configuration)
   - [Sequential Bulk Loader](#sequential-bulk-loader-bulk_loadpy)
     - [Performance Note: Why only `.nq.gz`?](#performance-note-why-only-nqgz)
+  - [Quadstore Dump Utility](#quadstore-dump-utility-dump_quadstorepy)
   - [Full-Text Index Rebuilder](#full-text-index-rebuilder-rebuild_fulltext_indexpy)
 
 ## Features
 
 *   **Sequential Bulk Loading:** The [`bulk_load.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/bulk_load.py) script provides a sequential method to load N-Quads Gzipped files (`*.nq.gz`) into Virtuoso. It finds files within a specified directory (either locally or inside a Docker container) and uses the official Virtuoso `ld_dir`/`ld_dir_all` and `rdf_loader_run` methods for efficient loading.
+*   **Quadstore Export:** The [`dump_quadstore.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/dump_quadstore.py) script provides a comprehensive solution to export the entire content of a Virtuoso quadstore using the official Virtuoso `dump_nquads` stored procedure. This procedure is specifically designed for N-Quads export and is documented in the [official OpenLink Virtuoso VOS documentation](https://vos.openlinksw.com/owiki/wiki/VOS/VirtRDFDumpNQuad).
 *   **Docker Support:** Seamlessly integrates with Virtuoso running in a Docker container by executing `isql` commands via `docker exec`.
 *   **Flexible Configuration:** Allows customization of Virtuoso connection details, file patterns, and paths to `isql` and `docker` executables.
 *   **Virtuoso Docker Launcher:** The [`launch_virtuoso.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/launch_virtuoso.py) script provides a convenient way to launch a Virtuoso database using Docker with customizable configuration parameters, including automatic memory tuning and volume mounts. It also sets the `DirsAllowed` parameter in the container based on mounted volumes.
@@ -148,20 +150,20 @@ Therefore, for optimal bulk loading performance with Virtuoso's `ld_dir`/`rdf_lo
 **Basic Usage (Host Virtuoso):**
 
 ```bash
-poetry run python virtuoso_utilities/bulk_load.py \\\\
-    -d /path/accessible/by/virtuoso/server \\\\
+poetry run python virtuoso_utilities/bulk_load.py \\
+    -d /path/accessible/by/virtuoso/server \\
     -k <your_virtuoso_password>
 ```
 
 **Customized Usage (Host Virtuoso):**
 
 ```bash
-poetry run python virtuoso_utilities/bulk_load.py \\\\
-    -d /path/accessible/by/virtuoso/server \\\\
-    -k <your_virtuoso_password> \\\\
-    --host <virtuoso_host> \\\\
-    --port <virtuoso_port> \\\\
-    --user <virtuoso_user> \\\\
+poetry run python virtuoso_utilities/bulk_load.py \\
+    -d /path/accessible/by/virtuoso/server \\
+    -k <your_virtuoso_password> \\
+    --host <virtuoso_host> \\
+    --port <virtuoso_port> \\
+    --user <virtuoso_user> \\
     --recursive
 ```
 
@@ -193,7 +195,7 @@ Use `poetry run python virtuoso_utilities/bulk_load.py --help` to see all availa
     *   If using Docker (`--docker-container`): This must be the **absolute path inside the container** (e.g., `/rdf_mount_in_container`) accessible by Virtuoso.
     *   If *not* using Docker: This must be the **path on the host system** accessible by the Virtuoso server process.
     *   In either case, this path **must** be listed in the relevant `DirsAllowed` setting.
-*   `-k`, `--password`: **Required.** Virtuoso `dba` user password.
+*   `-k`, `--password`: **Required.** Virtuoso `dba` user password (Default: `dba`).
 *   `-H`, `--host`: Virtuoso server host (Default: `localhost`).
 *   `-P`, `--port`: Virtuoso server ISQL port (Default: `1111`). Use the *host* port if mapped via Docker.
 *   `-u`, `--user`: Virtuoso username (Default: `dba`).
@@ -201,6 +203,97 @@ Use `poetry run python virtuoso_utilities/bulk_load.py --help` to see all availa
 *   `--checkpoint-interval`: Interval (seconds) to set for Virtuoso checkpointing *after* the bulk load completes (Default: `60`).
 *   `--scheduler-interval`: Interval (seconds) to set for the Virtuoso scheduler *after* the bulk load completes (Default: `10`).
 *   `--isql-path`: Path to `isql` on the host system (Default: `isql`). Used only if not in Docker mode.
+
+### Quadstore Dump Utility ([`dump_quadstore.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/dump_quadstore.py))
+
+This script provides a comprehensive solution to export the entire content of a Virtuoso quadstore using the official Virtuoso `dump_nquads` stored procedure. This procedure is specifically designed for N-Quads export and is documented in the [official OpenLink Virtuoso VOS documentation](https://vos.openlinksw.com/owiki/wiki/VOS/VirtRDFDumpNQuad).
+
+**Key Features:**
+
+*   **Official Virtuoso Procedure:** Uses the optimized `dump_nquads` stored procedure specifically designed for N-Quads export with Named Graph information preservation.
+*   **N-Quads Format:** Outputs data in N-Quads format, which preserves Named Graph IRI information and provides significant value for data partitioning applications.
+*   **Automatic Procedure Installation:** The script automatically installs the required `dump_nquads` stored procedure in Virtuoso before performing the dump.
+*   **Automatic Graph Filtering:** The procedure automatically excludes internal `virtrdf:` graphs while including all user data graphs.
+*   **Automatic Compression:** Output files are automatically compressed as .nq.gz files for space efficiency (can be disabled).
+*   **Configurable File Size Limits:** Control the maximum size of individual dump files to prevent excessively large files.
+*   **Sequential File Numbering:** Files are numbered sequentially (output000001.nq.gz, output000002.nq.gz, etc.) with configurable starting numbers.
+*   **Docker Integration:** Full support for Docker-based Virtuoso instances.
+
+**Important Prerequisites:**
+
+*   **DirsAllowed Configuration:** The output directory **must** be accessible by the Virtuoso server process and listed in the `DirsAllowed` parameter within the Virtuoso INI file.
+*   **File Permissions:** When using Docker, ensure the output directory is properly mounted and accessible inside the container.
+
+**Basic Usage (Local Virtuoso):**
+
+```bash
+poetry run python virtuoso_utilities/dump_quadstore.py \
+    --password <your_virtuoso_password> \
+    --output-dir ./virtuoso_dump
+```
+
+**Export with Custom File Size Limits (50MB per file):**
+
+```bash
+poetry run python virtuoso_utilities/dump_quadstore.py \
+    --password <your_virtuoso_password> \
+    --output-dir ./virtuoso_dump \
+    --file-length-limit 50000000
+```
+
+**Export Uncompressed Files Starting from output000005.nq:**
+
+```bash
+poetry run python virtuoso_utilities/dump_quadstore.py \
+    --password <your_virtuoso_password> \
+    --output-dir ./virtuoso_dump \
+    --no-compression \
+    --start-from 5
+```
+
+**Usage with Docker:**
+
+```bash
+# Example: First launch Virtuoso with launch_virtuoso.py
+poetry run python virtuoso_utilities/launch_virtuoso.py \
+    --name my-virtuoso-dump \
+    --isql-port 1112 \
+    --data-dir ./virtuoso-data \
+    --mount-volume ./dump_output:/dumps
+
+# Then dump the quadstore (note: path inside container)
+poetry run python virtuoso_utilities/dump_quadstore.py \
+    --password <your_virtuoso_password> \
+    --port 1112 \
+    --docker-container my-virtuoso-dump \
+    --output-dir /dumps
+```
+
+**Arguments:**
+
+Use `poetry run python virtuoso_utilities/dump_quadstore.py --help` to see all available options:
+
+**Connection Parameters:**
+*   `-H`, `--host`: Virtuoso server host (Default: `localhost`).
+*   `-P`, `--port`: Virtuoso server ISQL port (Default: `1111`). Use the *host* port if mapped via Docker.
+*   `-u`, `--user`: Virtuoso username (Default: `dba`).
+*   `-k`, `--password`: **Required.** Virtuoso password (Default: `dba`).
+
+**Output Parameters:**
+*   `-o`, `--output-dir`: Output directory for N-Quads files (Default: `./virtuoso_dump`).
+    - **With Docker:** this must be an already existing directory mounted inside the container, accessible by Virtuoso and present in DirsAllowed. The script does not create it on the host.
+    - **Without Docker:** the directory will be created automatically if it does not exist.
+*   `--file-length-limit`: Maximum length of dump files in bytes (Default: `100,000,000` - 100MB).
+*   `--no-compression`: Disable gzip compression (files will be .nq instead of .nq.gz).
+
+**Docker Parameters:**
+*   `--docker-container`: Name or ID of the running Virtuoso Docker container.
+
+**Output Format:**
+
+The script outputs data in **N-Quads (.nq)** format, which is the native format used by Virtuoso's `dump_nquads` procedure. Files are automatically compressed to `.nq.gz` format unless `--no-compression` is specified. The naming pattern is:
+- `output000001.nq.gz`, `output000002.nq.gz`, etc. for compressed files
+- `output000001.nq`, `output000002.nq`, etc. for uncompressed files
 
 ### Full-Text Index Rebuilder ([`rebuild_fulltext_index.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/rebuild_fulltext_index.py))
 

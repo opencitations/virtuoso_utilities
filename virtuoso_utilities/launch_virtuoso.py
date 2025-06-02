@@ -153,18 +153,20 @@ def calculate_max_checkpoint_remap(size_bytes: int) -> int:
     return int(size_bytes / 8192 / 4)
 
 
-def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buffers: int = None, max_dirty_buffers: int = None):
+def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buffers: int = None, max_dirty_buffers: int = None, dirs_allowed: str = None):
     """
     Updates memory-related settings in the virtuoso.ini file:
     - MaxCheckpointRemap: based on the actual size of the data directory
     - NumberOfBuffers: if provided
     - MaxDirtyBuffers: if provided
+    - DirsAllowed: if provided
 
     Args:
         ini_path: The full path to the virtuoso.ini file.
         data_dir_path: The path to the data directory to measure for MaxCheckpointRemap.
         number_of_buffers: Optional value for NumberOfBuffers setting.
         max_dirty_buffers: Optional value for MaxDirtyBuffers setting.
+        dirs_allowed: Optional value for DirsAllowed setting (comma-separated string).
     """
     if not os.path.exists(ini_path):
         print(f"Info: virtuoso.ini not found at '{ini_path}'. Likely first run. Skipping settings update.")
@@ -184,7 +186,7 @@ def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buff
         # Read with UTF-8, ignore errors initially if file has issues
         config.read(ini_path, encoding='utf-8')
 
-        # Update [Parameters] section for buffer settings
+        # Update [Parameters] section for buffer settings and DirsAllowed
         if not config.has_section('Parameters'):
             config.add_section('Parameters')
             print(f"Info: Added [Parameters] section to '{ini_path}'.")
@@ -205,6 +207,17 @@ def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buff
             if current_max_dirty_buffers != max_dirty_buffers_str:
                 config.set('Parameters', 'MaxDirtyBuffers', max_dirty_buffers_str)
                 print(f"Info: Updating [Parameters] MaxDirtyBuffers from '{current_max_dirty_buffers}' to '{max_dirty_buffers_str}' in '{ini_path}'.")
+                made_changes = True
+
+        if dirs_allowed is not None:
+            current_dirs_allowed = config.get('Parameters', 'DirsAllowed', fallback=None)
+            def normalize_dirs(val):
+                if val is None:
+                    return set()
+                return set([x.strip() for x in val.split(',') if x.strip()])
+            if normalize_dirs(current_dirs_allowed) != normalize_dirs(dirs_allowed):
+                config.set('Parameters', 'DirsAllowed', dirs_allowed)
+                print(f"Info: Updating [Parameters] DirsAllowed from '{current_dirs_allowed}' to '{dirs_allowed}' in '{ini_path}'.")
                 made_changes = True
 
         # Update MaxCheckpointRemap if database is large enough
@@ -656,11 +669,10 @@ def main() -> int:
     host_data_dir_abs = os.path.abspath(args.data_dir)
     ini_file_path = os.path.join(host_data_dir_abs, "virtuoso.ini")
 
-    # --- Attempt to update INI before checking/removing container ---
-    # This ensures the update happens based on the current state *before* we potentially remove
-    # a stopped container or error out because one is running.
-    update_ini_memory_settings(ini_file_path, host_data_dir_abs, args.number_of_buffers, args.max_dirty_buffers)
-    # --- End INI update attempt ---
+    docker_cmd, unique_paths_to_allow = build_docker_run_command(args)
+    dirs_allowed_str = ",".join(unique_paths_to_allow) if unique_paths_to_allow else None
+
+    update_ini_memory_settings(ini_file_path, host_data_dir_abs, args.number_of_buffers, args.max_dirty_buffers, dirs_allowed=dirs_allowed_str)
 
     container_exists = check_container_exists(args.name)
 
