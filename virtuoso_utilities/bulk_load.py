@@ -69,9 +69,9 @@ def find_nquads_files_docker(container, directory, recursive, docker_path="docke
     """
     pattern = NQ_GZ_PATTERN # Use the fixed pattern
     if recursive:
-        cmd = f"{docker_path} exec {container} find {directory} -type f -name '{pattern}' -print"
+        cmd = f"{docker_path} exec {container} find {directory} -type f -name \"{pattern}\" -print"
     else:
-        cmd = f"{docker_path} exec {container} find {directory} -maxdepth 1 -type f -name '{pattern}' -print"
+        cmd = f"{docker_path} exec {container} find {directory} -maxdepth 1 -type f -name \"{pattern}\" -print"
     
     try:
         result = subprocess.run(
