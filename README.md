@@ -25,7 +25,49 @@ A collection of Python utilities for interacting with OpenLink Virtuoso.
 
 ## Installation
 
-This project uses [Poetry](https://python-poetry.org/) for dependency management.
+This package can be installed in two ways: globally using `pipx` for easy command-line access, or locally using Poetry for development.
+
+### Global Installation with pipx (Recommended for end users)
+
+[pipx](https://pypa.github.io/pipx/) is the recommended way to install Python CLI applications globally. It creates isolated environments for each package, avoiding dependency conflicts.
+
+1.  **Install pipx** (if not already installed):
+    ```bash
+    # On Ubuntu/Debian
+    sudo apt install pipx
+    
+    # On macOS
+    brew install pipx
+    
+    # Or using pip
+    pip install --user pipx
+    pipx ensurepath
+    ```
+
+2.  **Install virtuoso-utilities globally**:
+    ```bash
+    # Install from PyPI
+    pipx install virtuoso-utilities
+    ```
+
+3.  **Use the global commands**:
+    ```bash
+    # Launch Virtuoso with Docker
+    virtuoso-launch --help
+    
+    # Bulk load data
+    virtuoso-bulk-load --help
+    
+    # Dump quadstore
+    virtuoso-dump --help
+    
+    # Rebuild full-text index
+    virtuoso-rebuild-index --help
+    ```
+
+### Local Development Installation with Poetry
+
+For development or if you prefer to use Poetry:
 
 1.  **Clone the repository:**
     ```bash
@@ -36,6 +78,13 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
     ```bash
     poetry install
     ```
+
+3.  **Run scripts with Poetry:**
+    ```bash
+    poetry run python virtuoso_utilities/launch_virtuoso.py --help
+    ```
+
+**Prerequisites:**
 
 You also need the Virtuoso `isql` client installed on your host system or accessible within your Docker container.
 
@@ -48,6 +97,10 @@ The script provides a convenient way to launch a Virtuoso database using Docker 
 **Basic Usage:**
 
 ```bash
+# With pipx (global installation)
+virtuoso-launch
+
+# With Poetry (development)
 poetry run python virtuoso_utilities/launch_virtuoso.py
 ```
 
@@ -56,6 +109,18 @@ This launches a Virtuoso container with default settings.
 **Customized Usage:**
 
 ```bash
+# With pipx (global installation)
+virtuoso-launch \
+    --name my-virtuoso \
+    --http-port 8891 \
+    --isql-port 1112 \
+    --data-dir ./my-virtuoso-data \
+    --dba-password mySafePassword \
+    --mount-volume /path/on/host/with/rdf:/rdf-data-in-container \
+    --detach \
+    --wait-ready
+
+# With Poetry (development)
 poetry run python virtuoso_utilities/launch_virtuoso.py \
     --name my-virtuoso \
     --http-port 8891 \
@@ -69,7 +134,7 @@ poetry run python virtuoso_utilities/launch_virtuoso.py \
 
 **Arguments:**
 
-Use `poetry run python virtuoso_utilities/launch_virtuoso.py --help` to see all available options:
+Use `virtuoso-launch --help` (or `poetry run python virtuoso_utilities/launch_virtuoso.py --help`) to see all available options:
 
 *   `--name`: Name for the Docker container (Default: `virtuoso`).
 *   `--http-port`: HTTP port to expose Virtuoso on (Default: `8890`).
@@ -150,46 +215,62 @@ Therefore, for optimal bulk loading performance with Virtuoso's `ld_dir`/`rdf_lo
 **Basic Usage (Host Virtuoso):**
 
 ```bash
-poetry run python virtuoso_utilities/bulk_load.py \\
-    -d /path/accessible/by/virtuoso/server \\
+# With pipx (global installation)
+virtuoso-bulk-load \
+    -d /path/accessible/by/virtuoso/server \
+    -k <your_virtuoso_password>
+
+# With Poetry (development)
+poetry run python virtuoso_utilities/bulk_load.py \
+    -d /path/accessible/by/virtuoso/server \
     -k <your_virtuoso_password>
 ```
 
 **Customized Usage (Host Virtuoso):**
 
 ```bash
-poetry run python virtuoso_utilities/bulk_load.py \\
-    -d /path/accessible/by/virtuoso/server \\
-    -k <your_virtuoso_password> \\
-    --host <virtuoso_host> \\
-    --port <virtuoso_port> \\
-    --user <virtuoso_user> \\
+# With pipx (global installation)
+virtuoso-bulk-load \
+    -d /path/accessible/by/virtuoso/server \
+    -k <your_virtuoso_password> \
+    --host <virtuoso_host> \
+    --port <virtuoso_port> \
+    --user <virtuoso_user> \
+    --recursive
+
+# With Poetry (development)
+poetry run python virtuoso_utilities/bulk_load.py \
+    -d /path/accessible/by/virtuoso/server \
+    -k <your_virtuoso_password> \
+    --host <virtuoso_host> \
+    --port <virtuoso_port> \
+    --user <virtuoso_user> \
     --recursive
 ```
 
 **Usage with Docker:**
 
 ```bash
-# Example: Launch Virtuoso first using launch_virtuoso.py
-poetry run python virtuoso_utilities/launch_virtuoso.py \
+# Example: Launch Virtuoso first (with pipx)
+virtuoso-launch \
     --name my-virtuoso-loader \
     --isql-port 1112 \
     --data-dir ./virtuoso-loader-data \
     --mount-volume /home/user/my_rdf_data:/rdf_mount_in_container
 
-# Then run the bulk loader (note: no --file-pattern needed)
-poetry run python virtuoso_utilities/bulk_load.py \
-    -d /rdf_mount_in_container \\ # Path INSIDE CONTAINER
-    -k <your_virtuoso_password> \\
-    --port 1112 \\ # Use the mapped ISQL port
-    --docker-container my-virtuoso-loader \\
-    --docker-isql-path /opt/virtuoso-opensource/bin/isql \\ # Typical path in container
+# Then run the bulk loader (with pipx)
+virtuoso-bulk-load \
+    -d /rdf_mount_in_container \
+    -k <your_virtuoso_password> \
+    --port 1112 \
+    --docker-container my-virtuoso-loader \
+    --docker-isql-path /opt/virtuoso-opensource/bin/isql \
     --recursive
 ```
 
 **Arguments:**
 
-Use `poetry run python virtuoso_utilities/bulk_load.py --help` to see all available options:
+Use `virtuoso-bulk-load --help` (or `poetry run python virtuoso_utilities/bulk_load.py --help`) to see all available options:
 
 *   `-d`, `--data-directory`: **Required.** Path where the script will search for N-Quads Gzipped (`.nq.gz`) files to register using `ld_dir` or `ld_dir_all`. **Meaning depends on context:**
     *   If using Docker (`--docker-container`): This must be the **absolute path inside the container** (e.g., `/rdf_mount_in_container`) accessible by Virtuoso.
@@ -227,6 +308,12 @@ This script provides a comprehensive solution to export the entire content of a 
 **Basic Usage (Local Virtuoso):**
 
 ```bash
+# With pipx (global installation)
+virtuoso-dump \
+    --password <your_virtuoso_password> \
+    --output-dir ./virtuoso_dump
+
+# With Poetry (development)
 poetry run python virtuoso_utilities/dump_quadstore.py \
     --password <your_virtuoso_password> \
     --output-dir ./virtuoso_dump
@@ -235,6 +322,13 @@ poetry run python virtuoso_utilities/dump_quadstore.py \
 **Export with Custom File Size Limits (50MB per file):**
 
 ```bash
+# With pipx (global installation)
+virtuoso-dump \
+    --password <your_virtuoso_password> \
+    --output-dir ./virtuoso_dump \
+    --file-length-limit 50000000
+
+# With Poetry (development)
 poetry run python virtuoso_utilities/dump_quadstore.py \
     --password <your_virtuoso_password> \
     --output-dir ./virtuoso_dump \
@@ -244,6 +338,14 @@ poetry run python virtuoso_utilities/dump_quadstore.py \
 **Export Uncompressed Files Starting from output000005.nq:**
 
 ```bash
+# With pipx (global installation)
+virtuoso-dump \
+    --password <your_virtuoso_password> \
+    --output-dir ./virtuoso_dump \
+    --no-compression \
+    --start-from 5
+
+# With Poetry (development)
 poetry run python virtuoso_utilities/dump_quadstore.py \
     --password <your_virtuoso_password> \
     --output-dir ./virtuoso_dump \
@@ -254,15 +356,15 @@ poetry run python virtuoso_utilities/dump_quadstore.py \
 **Usage with Docker:**
 
 ```bash
-# Example: First launch Virtuoso with launch_virtuoso.py
-poetry run python virtuoso_utilities/launch_virtuoso.py \
+# Example: First launch Virtuoso (with pipx)
+virtuoso-launch \
     --name my-virtuoso-dump \
     --isql-port 1112 \
     --data-dir ./virtuoso-data \
     --mount-volume ./dump_output:/dumps
 
-# Then dump the quadstore (note: path inside container)
-poetry run python virtuoso_utilities/dump_quadstore.py \
+# Then dump the quadstore (with pipx)
+virtuoso-dump \
     --password <your_virtuoso_password> \
     --port 1112 \
     --docker-container my-virtuoso-dump \
@@ -271,7 +373,7 @@ poetry run python virtuoso_utilities/dump_quadstore.py \
 
 **Arguments:**
 
-Use `poetry run python virtuoso_utilities/dump_quadstore.py --help` to see all available options:
+Use `virtuoso-dump --help` (or `poetry run python virtuoso_utilities/dump_quadstore.py --help`) to see all available options:
 
 **Connection Parameters:**
 *   `-H`, `--host`: Virtuoso server host (Default: `localhost`).
@@ -316,12 +418,22 @@ In some cases, the Full-Text index may need to be recreated if unexpected result
 **Basic Usage:**
 
 ```bash
+# With pipx (global installation)
+virtuoso-rebuild-index --password <your_virtuoso_password>
+
+# With Poetry (development)
 poetry run python virtuoso_utilities/rebuild_fulltext_index.py --password <your_virtuoso_password>
 ```
 
 **Usage with Docker:**
 
 ```bash
+# With pipx (global installation)
+virtuoso-rebuild-index \
+    --password <your_virtuoso_password> \
+    --docker-container my-virtuoso
+
+# With Poetry (development)
 poetry run python virtuoso_utilities/rebuild_fulltext_index.py \
     --password <your_virtuoso_password> \
     --docker-container my-virtuoso
@@ -329,13 +441,12 @@ poetry run python virtuoso_utilities/rebuild_fulltext_index.py \
 
 **Arguments:**
 
-Use `poetry run python virtuoso_utilities/rebuild_fulltext_index.py --help` to see all available options:
+Use `virtuoso-rebuild-index --help` (or `poetry run python virtuoso_utilities/rebuild_fulltext_index.py --help`) to see all available options:
 
 *   `--host`: Virtuoso host (Default: `localhost`).
 *   `--port`: Virtuoso ISQL port (Default: `1111`).
 *   `--user`: Virtuoso username (Default: `dba`).
 *   `--password`: Virtuoso password (Default: `dba`).
-*   `--docker-container`: Optional Docker container name/ID to execute ISQL inside.
 *   `--docker-container`: Name or ID of the running Virtuoso Docker container. If specified, `isql` commands are run via `docker exec`, and `-d` refers to the path *inside* the container.
 *   `--docker-isql-path`: Path to the `isql` executable *inside* the Docker container (Default: `isql`, often needs to be `/opt/virtuoso-opensource/bin/isql`).
 *   `--docker-path`: Path to the `docker` executable on the host system (Default: `docker`).
