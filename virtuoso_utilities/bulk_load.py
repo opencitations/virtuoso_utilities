@@ -260,32 +260,55 @@ IMPORTANT:
 
     print("\nStep 5: Checking load status from DB.DBA.load_list...")
 
-    check_sql = "SELECT ll_file, ll_graph, ll_state, ll_error FROM DB.DBA.load_list WHERE ll_error IS NOT NULL OR ll_state <> 2;"
-    print(f"Executing check: {check_sql}")
-    success_check, stdout_check, stderr_check = run_isql_command(args, sql_command=check_sql, capture=True)
+    print("\nStep 5: Checking load status from DB.DBA.load_list...")
+
+    # Query per ottenere statistiche reali sui file caricati
+    stats_sql = "SELECT COUNT(*) AS total_files, SUM(CASE WHEN ll_state = 2 THEN 1 ELSE 0 END) AS loaded, SUM(CASE WHEN ll_state <> 2 OR ll_error IS NOT NULL THEN 1 ELSE 0 END) AS issues FROM DB.DBA.load_list;"
+    print(f"Esecuzione controllo statistiche: {stats_sql}")
+    success_stats, stdout_stats, stderr_stats = run_isql_command(args, sql_command=stats_sql, capture=True)
 
     failed_files_details = []
-    if not success_check:
-        print("Error: Failed to query DB.DBA.load_list for status.", file=sys.stderr)
-        print(f"  Error: {stderr_check}", file=sys.stderr)
-        print("WARNING: Cannot confirm load success. Proceeding with cleanup and checkpoint.", file=sys.stderr)
+    load_success = False
+    
+    if not success_stats:
+        print("Errore: Impossibile interrogare DB.DBA.load_list per le statistiche.", file=sys.stderr)
+        print(f"  Errore: {stderr_stats}", file=sys.stderr)
+        print("ATTENZIONE: Impossibile confermare il successo del caricamento. Procedendo con checkpoint.", file=sys.stderr)
     else:
-        lines = stdout_check.strip().splitlines()
-        if len(lines) > 4 and not lines[-1].endswith("Rows."):
-             header = lines[3]
-             data_lines = lines[4:-1]
-             print(f"Found potential issues in DB.DBA.load_list:")
-             for line in data_lines:
-                 parts = line.split()
-                 if len(parts) >= 4:
-                     file = parts[0]
-                     graph = parts[1]
-                     state = parts[2]
-                     error = " ".join(parts[3:])
-                     failed_files_details.append({'file': file, 'graph': graph, 'state': state, 'error': error})
-                     print(f"  - File: {file}, State: {state}, Error: {error}")
-        elif "0 Rows." not in stdout_check:
-             print(f"Warning: Unexpected output when checking load_list. Output:\n{stdout_check}", file=sys.stderr)
+        # Estrai i dati dall'output ISQL
+        try:
+            lines = stdout_stats.strip().splitlines()
+            data_found = False
+            
+            # Cerca la riga con i dati effettivi (dopo le intestazioni)
+            for i, line in enumerate(lines):
+                if i > 3 and not line.endswith("Rows.") and not "INTEGER" in line and not "VARCHAR" in line:
+                    parts = line.split()
+                    if len(parts) >= 3 and parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit():
+                        total_files = int(parts[0])
+                        loaded_files = int(parts[1])
+                        issues = int(parts[2])
+                        
+                        print(f"Statistiche di caricamento da DB.DBA.load_list:")
+                        print(f"  - File totali: {total_files}")
+                        print(f"  - File caricati: {loaded_files}")
+                        print(f"  - Problemi: {issues}")
+                        
+                        # Verifica se tutti i file sono stati caricati con successo
+                        if total_files == loaded_files and issues == 0:
+                            print("Tutti i file sono stati caricati con successo!")
+                            load_success = True
+                        else:
+                            print("Attenzione: Non tutti i file sono stati caricati con successo.", file=sys.stderr)
+                        
+                        data_found = True
+                        break
+            
+            if not data_found:
+                print(f"Attenzione: Impossibile trovare statistiche nell'output. Output grezzo:\n{stdout_stats}", file=sys.stderr)
+        except Exception as e:
+            print(f"Errore nell'analisi delle statistiche di caricamento: {e}", file=sys.stderr)
+            print(f"Output grezzo:\n{stdout_stats}", file=sys.stderr)
 
     print("\nStep 6: Restoring default settings and running final checkpoint...")
 
@@ -320,15 +343,16 @@ IMPORTANT:
             print(f"  (and {len(failed_files_details) - 20} more...)")
 
     print("-" * 40)
-    if failed_files_details:
-        print(f"Sequential bulk load finished with potential errors reported in DB.DBA.load_list. Only '{NQ_GZ_PATTERN}' files were considered.", file=sys.stderr)
-        sys.exit(1)
+    # Determina il successo basandosi sulle statistiche di caricamento
+    if load_success:
+        print(f"Caricamento bulk completato con successo per i file '{NQ_GZ_PATTERN}'.")
+        sys.exit(0)
     elif not success_load:
-        print(f"Sequential bulk load finished, but rdf_loader_run() reported an error. Only '{NQ_GZ_PATTERN}' files were considered.", file=sys.stderr)
+        print(f"Caricamento bulk completato, ma rdf_loader_run() ha riportato un errore. Sono stati considerati solo i file '{NQ_GZ_PATTERN}'.", file=sys.stderr)
         sys.exit(1)
     else:
-        print(f"Bulk load finished for '{NQ_GZ_PATTERN}' files. Checkpoint complete.")
-        sys.exit(0)
+        print(f"Caricamento bulk completato con possibili problemi. Controlla manualmente lo stato dei file.", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
