@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.1.0...v1.2.0) (2025-07-04)
+
+
+### Features
+
+* Add `--enable-write-permissions` option to allow write access for 'nobody' and 'SPARQL' users ([830e99a](https://github.com/opencitations/virtuoso_utilities/commit/830e99a6c7d4738c2a74937407e1368cbcb6cf72))
+
 # [1.1.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.0.0...v1.1.0) (2025-07-04)
 
 
