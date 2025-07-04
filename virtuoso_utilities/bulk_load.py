@@ -34,13 +34,14 @@ from virtuoso_utilities.isql_helpers import run_isql_command
 DEFAULT_VIRTUOSO_HOST = "localhost"
 DEFAULT_VIRTUOSO_PORT = 1111
 DEFAULT_VIRTUOSO_USER = "dba"
-# --- File pattern is now fixed ---
+
+ISQL_PATH_HOST = "isql"
+ISQL_PATH_DOCKER = "isql"
+DOCKER_PATH = "docker"
+CHECKPOINT_INTERVAL = 60
+SCHEDULER_INTERVAL = 10
+
 NQ_GZ_PATTERN = '*.nq.gz'
-DEFAULT_ISQL_PATH_HOST = "isql"
-DEFAULT_ISQL_PATH_DOCKER = "isql"
-DEFAULT_DOCKER_PATH = "docker"
-DEFAULT_CHECKPOINT_INTERVAL = 60
-DEFAULT_SCHEDULER_INTERVAL = 10
 DEFAULT_PLACEHOLDER_GRAPH = "http://localhost:8890/DAV/ignored"
 
 
@@ -105,12 +106,11 @@ def main():
         epilog="""\
 Example usage:
   # Load all *.nq.gz files from /data/rdf (local mode)
-  python bulk_load_parallel.py -d /data/rdf -k mypassword
+  python bulk_load.py -d /data/rdf -k mypassword
 
   # Load *.nq.gz recursively using Docker, files at /database/data in container
-  python bulk_load_parallel.py -d /database/data -k mypassword --recursive \
-    --docker-container virtuoso_container \
-    --docker-isql-path /opt/virtuoso/bin/isql
+  python bulk_load.py -d /database/data -k mypassword --recursive \
+    --docker-container virtuoso_container
 
 IMPORTANT:
 - Only files with the extension `.nq.gz` will be loaded.
@@ -133,22 +133,16 @@ IMPORTANT:
                         help="Virtuoso password.")
     parser.add_argument("--recursive", action='store_true',
                         help="Load files recursively from subdirectories (uses ld_dir_all).")
-    parser.add_argument("--isql-path", default=DEFAULT_ISQL_PATH_HOST,
-                        help=f"Path to the Virtuoso 'isql' executable on the HOST system (Default: '{DEFAULT_ISQL_PATH_HOST}'). Used only if not in Docker mode.")
-    parser.add_argument("--checkpoint-interval", type=int, default=DEFAULT_CHECKPOINT_INTERVAL,
-                         help=f"Interval (seconds) to set for checkpointing after load (Default: {DEFAULT_CHECKPOINT_INTERVAL}).")
-    parser.add_argument("--scheduler-interval", type=int, default=DEFAULT_SCHEDULER_INTERVAL,
-                         help=f"Interval (seconds) to set for the scheduler after load (Default: {DEFAULT_SCHEDULER_INTERVAL}).")
 
     docker_group = parser.add_argument_group('Docker Options')
     docker_group.add_argument("--docker-container",
                         help="Name or ID of the running Virtuoso Docker container. If provided, 'isql' will be run via 'docker exec'.")
-    docker_group.add_argument("--docker-isql-path", default=DEFAULT_ISQL_PATH_DOCKER,
-                        help=f"Path to the 'isql' executable INSIDE the Docker container (Default: '{DEFAULT_ISQL_PATH_DOCKER}').")
-    docker_group.add_argument("--docker-path", default=DEFAULT_DOCKER_PATH,
-                        help=f"Path to the 'docker' executable on the HOST system (Default: '{DEFAULT_DOCKER_PATH}').")
 
     args = parser.parse_args()
+
+    args.isql_path = ISQL_PATH_HOST
+    args.docker_isql_path = ISQL_PATH_DOCKER
+    args.docker_path = DOCKER_PATH
 
     data_dir = args.data_directory
 
@@ -182,7 +176,7 @@ IMPORTANT:
             container=args.docker_container,
             directory=data_dir,
             recursive=args.recursive,
-            docker_path=args.docker_path
+            docker_path=DOCKER_PATH
         )
     else:
         print(f"Searching for files on local filesystem...")
@@ -312,7 +306,7 @@ IMPORTANT:
 
     print("\nStep 6: Restoring default settings and running final checkpoint...")
 
-    cleanup_sql = f"log_enable(3, 1); checkpoint; checkpoint_interval({args.checkpoint_interval}); scheduler_interval({args.scheduler_interval});"
+    cleanup_sql = f"log_enable(3, 1); checkpoint; checkpoint_interval({CHECKPOINT_INTERVAL}); scheduler_interval({SCHEDULER_INTERVAL});"
     print(f"Executing: {cleanup_sql}")
     success_final, _, stderr_final = run_isql_command(args, sql_command=cleanup_sql)
     if not success_final:

@@ -147,6 +147,7 @@ Use `virtuoso-launch --help` (or `poetry run python virtuoso_utilities/launch_vi
 *   `--max-dirty-buffers`: Maximum dirty buffers before checkpoint. Auto-calculated based on the final `--memory` value (either the default or the one you provided).
 *   `--number-of-buffers`: Number of buffers. Auto-calculated based on the final `--memory` value (either the default or the one you provided).
 *   `--estimated-db-size-gb`: Estimated database size in GB. If provided and >= 1 GB, `MaxCheckpointRemap` will be preconfigured via environment variables rather than measuring existing data. Useful for new deployments when you can estimate the final database size.
+*   `--network`: Docker network to connect the container to (must be a pre-existing network). This allows you to connect the Virtuoso container to a specific Docker network for communication with other containers.
 *   `--wait-ready`: Wait until Virtuoso is ready to accept connections.
 *   `--detach`: Run container in detached mode.
 *   `--force-remove`: Force removal of existing container with the same name.
@@ -264,7 +265,6 @@ virtuoso-bulk-load \
     -k <your_virtuoso_password> \
     --port 1112 \
     --docker-container my-virtuoso-loader \
-    --docker-isql-path /opt/virtuoso-opensource/bin/isql \
     --recursive
 ```
 
@@ -281,9 +281,9 @@ Use `virtuoso-bulk-load --help` (or `poetry run python virtuoso_utilities/bulk_l
 *   `-P`, `--port`: Virtuoso server ISQL port (Default: `1111`). Use the *host* port if mapped via Docker.
 *   `-u`, `--user`: Virtuoso username (Default: `dba`).
 *   `--recursive`: Search for `.nq.gz` files recursively within the data directory (uses `ld_dir_all` instead of `ld_dir`).
-*   `--checkpoint-interval`: Interval (seconds) to set for Virtuoso checkpointing *after* the bulk load completes (Default: `60`).
-*   `--scheduler-interval`: Interval (seconds) to set for the Virtuoso scheduler *after* the bulk load completes (Default: `10`).
-*   `--isql-path`: Path to `isql` on the host system (Default: `isql`). Used only if not in Docker mode.
+
+**Docker Options:**
+*   `--docker-container`: Name or ID of the running Virtuoso Docker container. If provided, `isql` will be run via `docker exec`.
 
 ### Quadstore Dump Utility ([`dump_quadstore.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/dump_quadstore.py))
 
@@ -448,5 +448,3 @@ Use `virtuoso-rebuild-index --help` (or `poetry run python virtuoso_utilities/re
 *   `--user`: Virtuoso username (Default: `dba`).
 *   `--password`: Virtuoso password (Default: `dba`).
 *   `--docker-container`: Name or ID of the running Virtuoso Docker container. If specified, `isql` commands are run via `docker exec`, and `-d` refers to the path *inside* the container.
-*   `--docker-isql-path`: Path to the `isql` executable *inside* the Docker container (Default: `isql`, often needs to be `/opt/virtuoso-opensource/bin/isql`).
-*   `--docker-path`: Path to the `docker` executable on the host system (Default: `docker`).

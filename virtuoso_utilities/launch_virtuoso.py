@@ -367,6 +367,11 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Force removal of existing container with the same name"
     )
+    
+    parser.add_argument(
+        "--network",
+        help="Docker network to connect the container to (must be a pre-existing network)"
+    )
 
     parser.add_argument(
         "--wait-ready", 
@@ -495,6 +500,9 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
 
     cmd.extend(["-p", f"{args.http_port}:8890"])
     cmd.extend(["-p", f"{args.isql_port}:1111"])
+    
+    if args.network:
+        cmd.extend(["--network", args.network])
     
     # Ensure container_data_dir is absolute-like for consistency
     container_data_dir_path = DEFAULT_CONTAINER_DATA_DIR
