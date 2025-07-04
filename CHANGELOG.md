@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.0.0...v1.1.0) (2025-07-04)
+
+
+### Features
+
+* Add `--network` option for specifying Docker network connections. ([190ee23](https://github.com/opencitations/virtuoso_utilities/commit/190ee23bbab3770f7b95a0b88c06ceacfbf38324))
+
 # 1.0.0 (2025-06-03)
 
 
