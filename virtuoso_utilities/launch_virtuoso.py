@@ -385,6 +385,14 @@ def parse_arguments() -> argparse.Namespace:
     )
     
     parser.add_argument(
+        "--enable-write-permissions",
+        action="store_true",
+        help="Enable write permissions for 'nobody' and 'SPARQL' users. "
+             "This makes the database publicly writable. "
+             "Forces waiting for the container to be ready."
+    )
+    
+    parser.add_argument(
         "--estimated-db-size-gb",
         type=float,
         default=0,
@@ -664,6 +672,48 @@ def run_docker_command(cmd: List[str], capture_output=False, check=True, suppres
          raise
 
 
+def enable_write_permissions(args: argparse.Namespace) -> bool:
+    """
+    Enables write permissions for 'nobody' and 'SPARQL' users.
+
+    Args:
+        args: Command-line arguments containing connection details.
+
+    Returns:
+        bool: True if permissions were set successfully, False otherwise.
+    """
+    print("Enabling write permissions for 'nobody' and 'SPARQL' users...")
+
+    isql_helper_args = argparse.Namespace(
+        host="localhost",
+        port=1111, # Internal Docker port for Virtuoso
+        user="dba",
+        password=args.dba_password,
+        docker_container=args.name,
+        docker_path=DOCKER_EXEC_PATH,
+        docker_isql_path=DOCKER_ISQL_PATH_INSIDE_CONTAINER,
+        isql_path=None
+    )
+
+    cmd1 = "DB.DBA.RDF_DEFAULT_USER_PERMS_SET('nobody', 7);"
+    print(f"Executing: {cmd1}")
+    success1, _, stderr1 = run_isql_command(isql_helper_args, sql_command=cmd1, capture=True)
+    if success1:
+        print("  Successfully set permissions for 'nobody' user.")
+    else:
+        print(f"  Warning: Failed to set permissions for 'nobody' user. Error: {stderr1}", file=sys.stderr)
+
+    cmd2 = "DB.DBA.USER_GRANT_ROLE('SPARQL', 'SPARQL_UPDATE');"
+    print(f"Executing: {cmd2}")
+    success2, _, stderr2 = run_isql_command(isql_helper_args, sql_command=cmd2, capture=True)
+    if success2:
+        print("  Successfully granted SPARQL_UPDATE role to 'SPARQL' user.")
+    else:
+        print(f"  Warning: Failed to grant SPARQL_UPDATE role to 'SPARQL' user. Error: {stderr2}", file=sys.stderr)
+
+    return success1 and success2
+
+
 def main() -> int:
     """
     Main function to launch Virtuoso with Docker.
@@ -713,19 +763,24 @@ def main() -> int:
     try:
         run_docker_command(docker_cmd, check=not args.detach) # Don't check exit code if detached
 
-        if args.detach and args.wait_ready:
+        should_wait = args.wait_ready or args.enable_write_permissions
+
+        if args.detach and should_wait:
             print("Waiting for Virtuoso readiness...")
-            if not wait_for_virtuoso_ready(
+            ready = wait_for_virtuoso_ready(
                 args.name,
                 "localhost", # Assuming ISQL check connects via localhost mapping
                 args.isql_port,
                 args.dba_password,
                 timeout=DEFAULT_WAIT_TIMEOUT
-            ):
+            )
+            if not ready:
                 print("Warning: Container started in detached mode but readiness check timed out or failed.", file=sys.stderr)
-                # Don't exit with error, just warn
+            elif args.enable_write_permissions:
+                if not enable_write_permissions(args):
+                    print("Warning: One or more commands to enable write permissions failed. Check logs above.", file=sys.stderr)
+
         elif not args.detach:
-             # If running attached, it only exits when Virtuoso stops or fails
              print("Virtuoso container exited.")
              return 0 # Assume normal exit if not detached and no exception
 

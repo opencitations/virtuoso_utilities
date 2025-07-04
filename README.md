@@ -117,8 +117,11 @@ virtuoso-launch \
     --data-dir ./my-virtuoso-data \
     --dba-password mySafePassword \
     --mount-volume /path/on/host/with/rdf:/rdf-data-in-container \
+    --network my-docker-network \
+    --memory 16g \
     --detach \
-    --wait-ready
+    --wait-ready \
+    --enable-write-permissions
 
 # With Poetry (development)
 poetry run python virtuoso_utilities/launch_virtuoso.py \
@@ -128,8 +131,11 @@ poetry run python virtuoso_utilities/launch_virtuoso.py \
     --data-dir ./my-virtuoso-data \
     --dba-password mySafePassword \
     --mount-volume /path/on/host/with/rdf:/rdf-data-in-container \
+    --network my-docker-network \
+    --memory 16g \
     --detach \
-    --wait-ready
+    --wait-ready \
+    --enable-write-permissions
 ```
 
 **Arguments:**
@@ -149,6 +155,7 @@ Use `virtuoso-launch --help` (or `poetry run python virtuoso_utilities/launch_vi
 *   `--estimated-db-size-gb`: Estimated database size in GB. If provided and >= 1 GB, `MaxCheckpointRemap` will be preconfigured via environment variables rather than measuring existing data. Useful for new deployments when you can estimate the final database size.
 *   `--network`: Docker network to connect the container to (must be a pre-existing network). This allows you to connect the Virtuoso container to a specific Docker network for communication with other containers.
 *   `--wait-ready`: Wait until Virtuoso is ready to accept connections.
+*   `--enable-write-permissions`: Enable write permissions for 'nobody' and 'SPARQL' users. This makes the database publicly writable and is useful for development or specific use cases where an open SPARQL endpoint is needed. This option forces the script to wait for the container to be ready before applying permissions.
 *   `--detach`: Run container in detached mode.
 *   `--force-remove`: Force removal of existing container with the same name.
 
