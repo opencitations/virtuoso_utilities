@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.2.0...v1.2.1) (2025-07-19)
+
+
+### Bug Fixes
+
+*  [release] Full-text index rebuild utility now can work inside of a container ([6942aaa](https://github.com/opencitations/virtuoso_utilities/commit/6942aaa77eb6b608d272821c4a59eb8022009c9c))
+
 # [1.2.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.1.0...v1.2.0) (2025-07-04)
 
 
