@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.2.1...v1.3.0) (2025-07-20)
+
+
+### Features
+
+* [release] Add options for specifying Virtuoso Docker image version and SHA ([3cc43b0](https://github.com/opencitations/virtuoso_utilities/commit/3cc43b0e0a4971b20db34474cfc4c7e995debe8b))
+
 ## [1.2.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.2.0...v1.2.1) (2025-07-19)
 
 
