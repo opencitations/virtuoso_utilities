@@ -400,6 +400,18 @@ def parse_arguments() -> argparse.Namespace:
              "based on this estimate rather than measuring existing data."
     )
     
+    parser.add_argument(
+        "--virtuoso-version",
+        default=None,
+        help="Virtuoso Docker image version/tag to use (e.g., 'latest', '7.2.11', '7.2.12'). If not specified, uses the default pinned version."
+    )
+    
+    parser.add_argument(
+        "--virtuoso-sha",
+        default=None,
+        help="Virtuoso Docker image SHA256 digest to use (e.g., 'sha256:e07868a3db9090400332eaa8ee694b8cf9bf7eebc26db6bbdc3bb92fd30ed010'). Takes precedence over --virtuoso-version."
+    )
+    
     args_temp, _ = parser.parse_known_args()
     
     optimal_number_of_buffers, optimal_max_dirty_buffers = get_optimal_buffer_values(args_temp.memory)
@@ -479,6 +491,27 @@ def remove_container(container_name: str) -> bool:
         return True
     except subprocess.SubprocessError:
         return False
+
+
+def get_docker_image(version: str, sha: str) -> str:
+    """
+    Get the appropriate Docker image based on version or SHA parameter.
+    
+    Args:
+        version: Version string (e.g., 'latest', '7.2.11', '7.2.12') or None for default
+        sha: SHA256 digest string or None
+        
+    Returns:
+        str: Full Docker image reference
+    """
+    if sha is not None:
+        return f"openlink/virtuoso-opensource-7@{sha}"
+    elif version is None:
+        return DEFAULT_IMAGE
+    elif version == "latest":
+        return "openlink/virtuoso-opensource-7:latest"
+    else:
+        return f"openlink/virtuoso-opensource-7:{version}"
 
 
 def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[str]]:
@@ -571,7 +604,8 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
         cmd.insert(2, "--rm") # Insert after "docker run"
     
     # Append image name
-    cmd.append(DEFAULT_IMAGE)
+    docker_image = get_docker_image(args.virtuoso_version, args.virtuoso_sha)
+    cmd.append(docker_image)
     
     return cmd, paths_to_allow_in_container
 
