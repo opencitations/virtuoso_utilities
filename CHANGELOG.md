@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.3.0...v1.3.1) (2025-09-16)
+
+
+### Bug Fixes
+
+* **virtuoso:** enforce SQL_QUERY_TIMEOUT and SQL_TXN_TIMEOUT to 0 at launch [release] ([f68b7a1](https://github.com/opencitations/virtuoso_utilities/commit/f68b7a19baeb9ecb6a81110bbba42a8f0192f0e3))
+
 # [1.3.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.2.1...v1.3.0) (2025-07-20)
 
 
