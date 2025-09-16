@@ -9,6 +9,7 @@ A collection of Python utilities for interacting with OpenLink Virtuoso.
 - [Usage](#usage)
   - [Virtuoso Docker Launcher](#virtuoso-docker-launcher-launch_virtuosopy)
     - [Memory-Based Configuration](#memory-based-configuration)
+    - [Client SQL Timeouts](#client-sql-timeouts)
   - [Sequential Bulk Loader](#sequential-bulk-loader-bulk_loadpy)
     - [Performance Note: Why only `.nq.gz`?](#performance-note-why-only-nqgz)
   - [Quadstore Dump Utility](#quadstore-dump-utility-dump_quadstorepy)
@@ -199,6 +200,10 @@ For large databases (> 1 GiB), Virtuoso recommends tuning the `MaxCheckpointRema
 This automation simplifies tuning `MaxCheckpointRemap` based on the actual database size.
 
 For more detailed information on Virtuoso performance tuning, refer to the [official OpenLink documentation](https://docs.openlinksw.com/virtuoso/rdfperformancetuning/).
+
+#### Client SQL Timeouts
+
+To ensure reliable operation of the dump utility, Virtuoso must not abort long-running operations due to client timeouts. The launcher enforces the following settingsd in `[Client]` of `virtuoso.ini`: `SQL_QUERY_TIMEOUT = 0` and `SQL_TXN_TIMEOUT = 0`.
 
 ### Sequential Bulk Loader ([`bulk_load.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/bulk_load.py))
 

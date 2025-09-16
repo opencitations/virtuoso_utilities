@@ -155,11 +155,12 @@ def calculate_max_checkpoint_remap(size_bytes: int) -> int:
 
 def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buffers: int = None, max_dirty_buffers: int = None, dirs_allowed: str = None):
     """
-    Updates memory-related settings in the virtuoso.ini file:
+    Updates settings in the virtuoso.ini file:
     - MaxCheckpointRemap: based on the actual size of the data directory
     - NumberOfBuffers: if provided
     - MaxDirtyBuffers: if provided
     - DirsAllowed: if provided
+    - [Client] SQL_QUERY_TIMEOUT and SQL_TXN_TIMEOUT set to 0
 
     Args:
         ini_path: The full path to the virtuoso.ini file.
@@ -199,6 +200,23 @@ def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buff
                 config.set('Parameters', 'NumberOfBuffers', number_of_buffers_str)
                 print(f"Info: Updating [Parameters] NumberOfBuffers from '{current_number_of_buffers}' to '{number_of_buffers_str}' in '{ini_path}'.")
                 made_changes = True
+
+        # Ensure [Client] section has SQL timeouts set to 0
+        if not config.has_section('Client'):
+            config.add_section('Client')
+            print(f"Info: Added [Client] section to '{ini_path}'.")
+
+        current_sql_query_timeout = config.get('Client', 'SQL_QUERY_TIMEOUT', fallback=None)
+        if current_sql_query_timeout != '0':
+            config.set('Client', 'SQL_QUERY_TIMEOUT', '0')
+            print(f"Info: Setting [Client] SQL_QUERY_TIMEOUT to '0' in '{ini_path}'.")
+            made_changes = True
+
+        current_sql_txn_timeout = config.get('Client', 'SQL_TXN_TIMEOUT', fallback=None)
+        if current_sql_txn_timeout != '0':
+            config.set('Client', 'SQL_TXN_TIMEOUT', '0')
+            print(f"Info: Setting [Client] SQL_TXN_TIMEOUT to '0' in '{ini_path}'.")
+            made_changes = True
 
         # Update MaxDirtyBuffers if provided
         if max_dirty_buffers is not None:
@@ -581,7 +599,10 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
         "VIRT_Parameters_MaxDirtyBuffers": str(args.max_dirty_buffers),
         "VIRT_Parameters_NumberOfBuffers": str(args.number_of_buffers),
         "VIRT_Parameters_DirsAllowed": ",".join(paths_to_allow_in_container),
-        "VIRT_SPARQL_DefaultQuery": "SELECT (COUNT(*) AS ?quadCount) WHERE { GRAPH ?g { ?s ?p ?o } }"
+        "VIRT_SPARQL_DefaultQuery": "SELECT (COUNT(*) AS ?quadCount) WHERE { GRAPH ?g { ?s ?p ?o } }",
+        # Enforce client-side timeouts to 0
+        "VIRT_Client_SQL_QUERY_TIMEOUT": "0",
+        "VIRT_Client_SQL_TXN_TIMEOUT": "0",
     }
     
     # Set MaxCheckpointRemap environment variables if estimated size is provided
