@@ -331,7 +331,8 @@ Important Notes:
     args.docker_isql_path = DEFAULT_ISQL_PATH_DOCKER
     args.docker_path = DEFAULT_DOCKER_PATH
 
-    args.output_dir = os.path.abspath(args.output_dir)
+    if os.name != "nt" and args.docker_container:
+    	args.output_dir = os.path.abspath(args.output_dir)
 
     print("-" * 70)
     print("Virtuoso N-Quads Dump Configuration:")
