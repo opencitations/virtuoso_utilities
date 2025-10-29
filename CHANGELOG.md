@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.3.1...v1.4.0) (2025-10-29)
+
+
+### Features
+
+* assign DOI on Zenodo [release] ([ce81354](https://github.com/opencitations/virtuoso_utilities/commit/ce813542de75bed8afc1f1d57618ae5bfdbeb1e8))
+
 ## [1.3.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.3.0...v1.3.1) (2025-09-16)
 
 
