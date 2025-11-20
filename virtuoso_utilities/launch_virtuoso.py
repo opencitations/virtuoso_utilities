@@ -26,6 +26,8 @@ DEFAULT_IMAGE = "openlink/virtuoso-opensource-7@sha256:e07868a3db9090400332eaa8e
 DEFAULT_CONTAINER_DATA_DIR = "/opt/virtuoso-opensource/database"
 DEFAULT_MAX_ROWS = 100000
 
+VIRTUOSO_MEMORY_PERCENTAGE = 0.85
+
 from virtuoso_utilities.isql_helpers import run_isql_command
 
 # Minimum database size in bytes to trigger MaxCheckpointRemap calculation
@@ -114,24 +116,29 @@ def get_optimal_buffer_values(memory_limit: str) -> Tuple[int, int]:
     """
     Determine optimal values for NumberOfBuffers and MaxDirtyBuffers
     based on the specified container memory limit.
-    
-    Uses the formula recommended by OpenLink: 
-    NumberOfBuffers = (MemoryInBytes * 0.66) / 8000
+
+    Uses the formula recommended by OpenLink:
+    NumberOfBuffers = (MemoryInBytes * VIRTUOSO_MEMORY_PERCENTAGE * 0.66) / 8000
     MaxDirtyBuffers = NumberOfBuffers * 0.75
-    
+
+    The memory_limit is reduced by VIRTUOSO_MEMORY_PERCENTAGE to leave
+    headroom for Virtuoso process overhead and prevent container OOM crashes.
+
     Args:
         memory_limit: Memory limit string in Docker format (e.g., "2g", "4096m")
-        
+
     Returns:
         Tuple[int, int]: Calculated values for NumberOfBuffers and MaxDirtyBuffers
     """
     try:
         memory_bytes = parse_memory_value(memory_limit)
-        
+
+        memory_bytes = int(memory_bytes * VIRTUOSO_MEMORY_PERCENTAGE)
+
         number_of_buffers = int((memory_bytes * 0.66) / 8000)
-        
+
         max_dirty_buffers = int(number_of_buffers * 0.75)
-                    
+
         return number_of_buffers, max_dirty_buffers
 
     except Exception as e:
@@ -431,7 +438,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     
     args_temp, _ = parser.parse_known_args()
-    
+
     optimal_number_of_buffers, optimal_max_dirty_buffers = get_optimal_buffer_values(args_temp.memory)
     
     parser.add_argument(
@@ -588,7 +595,11 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
                 container_path_abs = container_path if container_path.startswith('/') else '/' + container_path
                 paths_to_allow_in_container.add(container_path_abs)
                 print(f"Info: Adding mounted volume path '{container_path_abs}' to DirsAllowed.")
-    
+
+    memory_bytes = parse_memory_value(args.memory)
+    reservation_bytes = int(memory_bytes * VIRTUOSO_MEMORY_PERCENTAGE)
+    reservation_str = bytes_to_docker_mem_str(reservation_bytes)
+    cmd.extend(["--memory-reservation", reservation_str])
     cmd.extend(["--memory", args.memory])
     if args.cpu_limit > 0:
         cmd.extend(["--cpus", str(args.cpu_limit)])

@@ -170,14 +170,23 @@ The script aims to simplify memory configuration based on Virtuoso best practice
 
 1.  **Container Memory Limit (`--memory`):** The script automatically detects your host's total RAM and sets the *default* value for `--memory` to approximately 2/3 of that total (e.g., if you have 128GiB RAM, the default might become `85g`). This follows the Virtuoso guideline of allocating a significant portion of system RAM to the database process when dealing with large datasets. You can always explicitly set `--memory` to any value you prefer, overriding the automatic calculation.
 
-2.  **Virtuoso Internal Buffers (`--number-of-buffers`, `--max-dirty-buffers`):** Based on the *final* memory limit set for the container (whether automatically calculated or manually specified via `--memory`), the script automatically calculates optimal values for Virtuoso's internal `NumberOfBuffers` and `MaxDirtyBuffers`. It uses the formula recommended in the [OpenLink Virtuoso Performance Tuning documentation](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692):
+2.  **Docker memory reservation:** To prevent out-of-memory (OOM) crashes, the script automatically sets Docker's `--memory-reservation` to 85% of the `--memory` limit. This provides a 15% safety margin for Virtuoso process overhead, temporary operations, and system stability.
+
+3.  **Virtuoso Internal Buffers (`--number-of-buffers`, `--max-dirty-buffers`):** The script automatically calculates optimal values for Virtuoso's internal `NumberOfBuffers` and `MaxDirtyBuffers` based on 85% of the container memory limit. It uses the formula recommended in the [OpenLink Virtuoso Performance Tuning documentation](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692):
     ```
-    NumberOfBuffers = (ContainerMemoryLimitInBytes * 0.66) / 8000
+    EffectiveMemory = ContainerMemoryLimit * 0.85
+    NumberOfBuffers = (EffectiveMemory * 0.66) / 8000
     MaxDirtyBuffers = NumberOfBuffers * 0.75
     ```
     These values are passed as environment variables (`VIRT_Parameters_NumberOfBuffers`, `VIRT_Parameters_MaxDirtyBuffers`) to the container. You can still manually override these calculated values using the `--number-of-buffers` and `--max-dirty-buffers` arguments if needed for specific tuning requirements.
 
-3.  **Allowed Directories (`DirsAllowed`):** The script automatically constructs the `VIRT_Parameters_DirsAllowed` environment variable passed to the container. It includes the container data directory (hardcoded to `/opt/virtuoso-opensource/database`) and any paths specified via `--mount-volume`, along with Virtuoso's default required paths. This ensures that Virtuoso has permission to access the mounted data directories.
+    **Example with `--memory 10g`:**
+    - Docker hard limit: 10g (100%)
+    - Docker soft limit (reservation): 8.5g (85%)
+    - Virtuoso buffer calculations: based on 8.5g
+    - Available headroom: 1.5g (15%) for process overhead
+
+4.  **Allowed Directories (`DirsAllowed`):** The script automatically constructs the `VIRT_Parameters_DirsAllowed` environment variable passed to the container. It includes the container data directory (hardcoded to `/opt/virtuoso-opensource/database`) and any paths specified via `--mount-volume`, along with Virtuoso's default required paths. This ensures that Virtuoso has permission to access the mounted data directories.
 
 **Automatic `MaxCheckpointRemap` Configuration:**
 
