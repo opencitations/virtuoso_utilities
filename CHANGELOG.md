@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.4.0...v1.4.1) (2025-11-20)
+
+
+### Bug Fixes
+
+* **launch_virtuoso:** [release] add Docker memory reservation and optimize Virtuoso buffer calculation ([322e39b](https://github.com/opencitations/virtuoso_utilities/commit/322e39b2b54779337a9af076e3991815108a2149))
+
 # [1.4.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.3.1...v1.4.0) (2025-10-29)
 
 
