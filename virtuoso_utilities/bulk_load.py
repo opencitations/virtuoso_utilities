@@ -229,7 +229,7 @@ IMPORTANT:
     try:
         bulk_load(
             data_directory=args.data_directory,
-            password=args.password,
+            password=args.password, 
             host=args.host,
             port=args.port,
             user=args.user,
