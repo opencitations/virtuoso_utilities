@@ -43,7 +43,6 @@ CHECKPOINT_INTERVAL = 60
 SCHEDULER_INTERVAL = 10
 
 NQ_GZ_PATTERN = '*.nq.gz'
-DEFAULT_PLACEHOLDER_GRAPH = "http://localhost:8890/DAV/ignored"
 
 
 def find_nquads_files_local(directory, recursive=False):
@@ -128,9 +127,9 @@ def bulk_load(
 
     container_dir_sql_escaped = container_dir.replace("'", "''")
     file_pattern_sql_escaped = NQ_GZ_PATTERN.replace("'", "''")
-    placeholder_graph_sql_escaped = DEFAULT_PLACEHOLDER_GRAPH.replace("'", "''")
 
-    register_sql = f"{ld_function}('{container_dir_sql_escaped}', '{file_pattern_sql_escaped}', '{placeholder_graph_sql_escaped}');"
+    # Use empty string to let Virtuoso read graph URIs from nquads (4th field)
+    register_sql = f"{ld_function}('{container_dir_sql_escaped}', '{file_pattern_sql_escaped}', '');"
     success_reg, _, stderr_reg = run_isql_command(args, sql_command=register_sql, capture=True)
 
     if not success_reg or "Unable to list files" in stderr_reg or "FA020" in stderr_reg:
@@ -169,6 +168,11 @@ def bulk_load(
                             f"Failed files:\n" + "\n".join(f"  - {f}" for f in failed_files)
                         )
                     break
+
+    delete_loaded_sql = "DELETE FROM DB.DBA.load_list WHERE ll_state = 2;"
+    success_delete, _, stderr_delete = run_isql_command(args, sql_command=delete_loaded_sql)
+    if not success_delete:
+        raise RuntimeError(f"Failed to clean up load_list table.\nError: {stderr_delete}")
 
     cleanup_sql = f"log_enable(3, 1); checkpoint; checkpoint_interval({CHECKPOINT_INTERVAL}); scheduler_interval({SCHEDULER_INTERVAL});"
     success_final, _, stderr_final = run_isql_command(args, sql_command=cleanup_sql)

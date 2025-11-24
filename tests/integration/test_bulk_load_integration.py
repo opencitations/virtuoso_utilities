@@ -249,6 +249,37 @@ def test_bulk_load_verify_graphs(clean_virtuoso, sample_nquads_file, test_data_d
     assert count_graph2 == 1, f"Expected 1 triple in graph2, got {count_graph2}"
 
 
+def test_bulk_load_cleanup_load_list(clean_virtuoso, sample_nquads_file, test_data_dir):
+    """
+    Test that DB.DBA.load_list table is cleaned after successful bulk load.
+
+    Verifies that successfully loaded files (ll_state = 2) are removed
+    from the load_list table after completion.
+    """
+    bulk_load(
+        data_directory=str(test_data_dir),
+        password=DBA_PASSWORD,
+        host="localhost",
+        port=HOST_PORT,
+        user="dba",
+        recursive=False,
+        docker_container=clean_virtuoso,
+        container_data_directory="/database/test_data"
+    )
+
+    sql = "SELECT COUNT(*) FROM DB.DBA.load_list WHERE ll_state = 2;"
+    cmd = [
+        "docker", "exec", clean_virtuoso,
+        "/opt/virtuoso-opensource/bin/isql",
+        "-U", "dba", "-P", DBA_PASSWORD,
+        f"exec={sql}"
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    count = parse_sparql_count(result.stdout)
+    assert count == 0, f"Expected 0 loaded files in load_list after cleanup, got {count}"
+
+
 def run_sparql_query(container_name, query):
     """
     Execute a SPARQL query against the test Virtuoso instance.
