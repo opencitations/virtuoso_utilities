@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.5.0...v1.5.1) (2025-11-24)
+
+
+### Bug Fixes
+
+* **bulk_load:** clean up load_list table after successful bulk load ([31bb2b4](https://github.com/opencitations/virtuoso_utilities/commit/31bb2b47b0b4e6513327fd27c349cffd6f899275))
+
 # [1.5.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.4.1...v1.5.0) (2025-11-24)
 
 
