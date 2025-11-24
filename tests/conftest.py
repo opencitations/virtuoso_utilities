@@ -37,18 +37,13 @@ def test_data_dir(test_dir):
     return data_dir
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def virtuoso_container(test_dir, virtuoso_db_dir, test_data_dir):
     """
-    Start a Virtuoso Docker container for testing.
+    Start a Virtuoso Docker container for the entire test session.
 
     Yields container name when ready, then stops and removes container on cleanup.
     """
-
-    if virtuoso_db_dir.exists():
-        shutil.rmtree(virtuoso_db_dir)
-    virtuoso_db_dir.mkdir(exist_ok=True)
-
     config_template = test_dir / "virtuoso_config_template" / "virtuoso.ini"
     config_dest = virtuoso_db_dir / "virtuoso.ini"
 
@@ -113,6 +108,27 @@ def virtuoso_container(test_dir, virtuoso_db_dir, test_data_dir):
     print(f"\nStopping and removing {CONTAINER_NAME} container...")
     subprocess.run(["docker", "rm", "-f", CONTAINER_NAME], check=True)
     print("Container removed.")
+
+
+@pytest.fixture(scope="function")
+def clean_virtuoso(virtuoso_container):
+    """
+    Clean Virtuoso database before each test.
+
+    Removes all RDF data and clears bulk loader tracking table.
+    """
+    cleanup_sql = "log_enable(3,1); RDF_GLOBAL_RESET(); DELETE FROM DB.DBA.load_list;"
+
+    cleanup_cmd = [
+        "docker", "exec", virtuoso_container,
+        "/opt/virtuoso-opensource/bin/isql",
+        "-U", "dba", "-P", DBA_PASSWORD,
+        f"exec={cleanup_sql}"
+    ]
+
+    subprocess.run(cleanup_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    yield virtuoso_container
 
 
 @pytest.fixture

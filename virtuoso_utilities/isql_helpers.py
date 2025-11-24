@@ -7,10 +7,11 @@ import os
 import shlex
 import subprocess
 import sys
+from typing import Union
 
 
 def _run_subprocess(
-    command: list[str] | str,
+    command: Union[list[str], str],
     use_shell: bool = False,
     capture: bool = False,
     encoding: str = 'utf-8'
@@ -35,8 +36,8 @@ def _run_subprocess(
 
 def run_isql_command(
     args: argparse.Namespace,
-    sql_command: str | None = None,
-    script_path: str | None = None,
+    sql_command: Union[str, None] = None,
+    script_path: Union[str, None] = None,
     capture: bool = False,
     ignore_errors: bool = False
 ) -> tuple[bool, str, str]:
@@ -54,8 +55,8 @@ def run_isql_command(
                                    is set, must also have docker_path and
                                    docker_isql_path. Otherwise, must have
                                    isql_path.
-        sql_command (str | None): The SQL command string to execute.
-        script_path (str | None): The path to the SQL script file to execute.
+        sql_command (Union[str, None]): The SQL command string to execute.
+        script_path (Union[str, None]): The path to the SQL script file to execute.
         capture (bool): If True, capture stdout and stderr.
         ignore_errors (bool): If True, print errors but return True anyway.
 
@@ -71,7 +72,7 @@ def run_isql_command(
     if not ((sql_command is None) ^ (script_path is None)):
         raise ValueError("Exactly one of sql_command or script_path must be provided.")
 
-    command_to_run: list[str] | str = []
+    command_to_run: Union[list[str], str] = []
     use_shell = False
     effective_isql_path_for_error = ""
     command_description = ""

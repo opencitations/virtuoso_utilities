@@ -117,7 +117,7 @@ def query_graphs(container_name):
     return graphs
 
 
-def test_bulk_load_success(virtuoso_container, sample_nquads_file, test_data_dir):
+def test_bulk_load_success(clean_virtuoso, sample_nquads_file, test_data_dir):
     """
     Test successful bulk loading of a single .nq.gz file.
 
@@ -133,18 +133,18 @@ def test_bulk_load_success(virtuoso_container, sample_nquads_file, test_data_dir
         port=HOST_PORT,
         user="dba",
         recursive=False,
-        docker_container=virtuoso_container,
+        docker_container=clean_virtuoso,
         container_data_directory="/database/test_data"
     )
 
-    subjects = query_subjects(virtuoso_container)
+    subjects = query_subjects(clean_virtuoso)
     assert len(subjects) == 3, f"Expected exactly 3 test subjects, got {len(subjects)}: {subjects}"
     assert "http://example.org/subject1" in subjects, f"Missing subject1 in {subjects}"
     assert "http://example.org/subject2" in subjects, f"Missing subject2 in {subjects}"
     assert "http://example.org/subject3" in subjects, f"Missing subject3 in {subjects}"
 
 
-def test_bulk_load_recursive(virtuoso_container, sample_nquads_files_recursive, test_data_dir):
+def test_bulk_load_recursive(clean_virtuoso, sample_nquads_files_recursive, test_data_dir):
     """
     Test recursive bulk loading from subdirectories.
 
@@ -157,17 +157,17 @@ def test_bulk_load_recursive(virtuoso_container, sample_nquads_files_recursive, 
         port=HOST_PORT,
         user="dba",
         recursive=True,
-        docker_container=virtuoso_container,
+        docker_container=clean_virtuoso,
         container_data_directory="/database/test_data"
     )
 
-    subjects = query_subjects(virtuoso_container)
+    subjects = query_subjects(clean_virtuoso)
     assert len(subjects) == 2, f"Expected exactly 2 test subjects from recursive loading, got {len(subjects)}: {subjects}"
     assert "http://example.org/root1" in subjects, f"Missing root1 from root directory in {subjects}"
     assert "http://example.org/sub1" in subjects, f"Missing sub1 from subdirectory in {subjects}"
 
 
-def test_bulk_load_no_files(virtuoso_container, test_data_dir):
+def test_bulk_load_no_files(clean_virtuoso, test_data_dir):
     """
     Test bulk_load with an empty directory.
 
@@ -184,18 +184,18 @@ def test_bulk_load_no_files(virtuoso_container, test_data_dir):
             port=HOST_PORT,
             user="dba",
             recursive=False,
-            docker_container=virtuoso_container,
+            docker_container=clean_virtuoso,
             container_data_directory="/database/test_data/empty"
         )
 
-        subjects = query_subjects(virtuoso_container)
+        subjects = query_subjects(clean_virtuoso)
         assert len(subjects) == 0, f"Expected 0 test subjects with empty directory, got {len(subjects)}: {subjects}"
     finally:
         if empty_dir.exists():
             empty_dir.rmdir()
 
 
-def test_bulk_load_dirs_not_allowed(virtuoso_container, sample_nquads_file, test_data_dir):
+def test_bulk_load_dirs_not_allowed(clean_virtuoso, sample_nquads_file, test_data_dir):
     """
     Test that bulk_load fails when the directory is not in DirsAllowed.
 
@@ -212,7 +212,7 @@ def test_bulk_load_dirs_not_allowed(virtuoso_container, sample_nquads_file, test
             port=HOST_PORT,
             user="dba",
             recursive=False,
-            docker_container=virtuoso_container,
+            docker_container=clean_virtuoso,
             container_data_directory=forbidden_dir
         )
 
@@ -220,7 +220,7 @@ def test_bulk_load_dirs_not_allowed(virtuoso_container, sample_nquads_file, test
         f"Expected 'unable to list files' error, got: {exc_info.value}"
 
 
-def test_bulk_load_verify_graphs(virtuoso_container, sample_nquads_file, test_data_dir):
+def test_bulk_load_verify_graphs(clean_virtuoso, sample_nquads_file, test_data_dir):
     """
     Test that data is loaded into the correct named graphs.
 
@@ -233,19 +233,19 @@ def test_bulk_load_verify_graphs(virtuoso_container, sample_nquads_file, test_da
         port=HOST_PORT,
         user="dba",
         recursive=False,
-        docker_container=virtuoso_container,
+        docker_container=clean_virtuoso,
         container_data_directory="/database/test_data"
     )
 
-    graphs = query_graphs(virtuoso_container)
+    graphs = query_graphs(clean_virtuoso)
     assert len(graphs) == 2, f"Expected exactly 2 named graphs, got {len(graphs)}: {graphs}"
     assert "http://example.org/graph1" in graphs, f"Missing graph1 in {graphs}"
     assert "http://example.org/graph2" in graphs, f"Missing graph2 in {graphs}"
 
-    count_graph1 = query_triple_count(virtuoso_container, "http://example.org/graph1")
+    count_graph1 = query_triple_count(clean_virtuoso, "http://example.org/graph1")
     assert count_graph1 == 2, f"Expected 2 triples in graph1, got {count_graph1}"
 
-    count_graph2 = query_triple_count(virtuoso_container, "http://example.org/graph2")
+    count_graph2 = query_triple_count(clean_virtuoso, "http://example.org/graph2")
     assert count_graph2 == 1, f"Expected 1 triple in graph2, got {count_graph2}"
 
 
