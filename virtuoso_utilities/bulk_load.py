@@ -24,12 +24,15 @@ Reference:
 
 import argparse
 import glob
+import logging
 import os
 import subprocess
 import sys
 import time
 
 from virtuoso_utilities.isql_helpers import run_isql_command
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_VIRTUOSO_HOST = "localhost"
 DEFAULT_VIRTUOSO_PORT = 1111
@@ -50,7 +53,7 @@ def find_nquads_files_local(directory, recursive=False):
     Find all N-Quads Gzipped files (`*.nq.gz`) in a directory on local filesystem.
     Returns a list of file paths.
     """
-    pattern = NQ_GZ_PATTERN # Use the fixed pattern
+    pattern = NQ_GZ_PATTERN
     if recursive:
         matches = []
         for root, _, _ in os.walk(directory):
@@ -88,9 +91,9 @@ def find_nquads_files_docker(container, directory, recursive, docker_path="docke
         return files
         
     except subprocess.CalledProcessError as e:
-        print(f"Error finding files in Docker container: {e}", file=sys.stderr)
-        print(f"Command: {cmd}", file=sys.stderr)
-        print(f"Error output: {e.stderr}", file=sys.stderr)
+        logger.error(f"Error finding files in Docker container: {e}")
+        logger.error(f"Command: {cmd}")
+        logger.error(f"Error output: {e.stderr}")
         return []
 
 
@@ -105,7 +108,8 @@ def bulk_load(
     isql_path: str = ISQL_PATH_HOST,
     docker_isql_path: str = ISQL_PATH_DOCKER,
     docker_path: str = DOCKER_PATH,
-    container_data_directory: str = None
+    container_data_directory: str = None,
+    log_level: str = "ERROR"
 ) -> None:
     """
     Perform Virtuoso bulk loading of N-Quads files.
@@ -124,10 +128,13 @@ def bulk_load(
         docker_isql_path: Path to isql binary inside Docker container
         docker_path: Path to docker binary
         container_data_directory: Path INSIDE container where Virtuoso accesses files (if different from data_directory)
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default: ERROR
 
     Raises:
         RuntimeError: If bulk load fails
     """
+
+    logging.basicConfig(level=getattr(logging, log_level.upper()), format='%(levelname)s: %(message)s', force=True)
 
     args = argparse.Namespace()
     args.data_directory = data_directory
@@ -147,38 +154,16 @@ def bulk_load(
 
     if not os.path.isabs(data_dir):
         data_dir = os.path.abspath(data_dir)
-        print(f"Converted data directory to absolute path: {data_dir}")
 
-    if args.docker_container:
-        print(f"Info: Using Docker container '{args.docker_container}' for ISQL commands")
-        print(f"      Files on host: {data_dir}")
-        print(f"      Files in container: {container_dir}")
-    else:
-        print(f"Info: Running locally. Files will be accessed at: {data_dir}")
-
-    print("-" * 40)
-    print("Configuration:")
-    print(f"  Host: {args.host}:{args.port}")
-    print(f"  User: {args.user}")
-    print(f"  Mode: {'Docker' if args.docker_container else 'Local'}")
-    print(f"  Host Data Dir: {data_dir}")
-    if args.container_data_directory:
-        print(f"  Container Data Dir: {container_dir}")
-    print(f"  File Pattern: {NQ_GZ_PATTERN}")
-    print(f"  Recursive: {args.recursive}")
-    print("-" * 40)
-
-    print(f"Finding '{NQ_GZ_PATTERN}' files in {data_dir}...")
+    logger.info(f"Virtuoso bulk load - Host: {args.host}:{args.port}, Mode: {'Docker' if args.docker_container else 'Local'}, Data: {data_dir}, Recursive: {args.recursive}")
 
     files = find_nquads_files_local(data_dir, args.recursive)
 
     if not files:
-        print(f"Info: No files matching '{NQ_GZ_PATTERN}' found in '{data_dir}'.")
+        logger.warning(f"No files matching '{NQ_GZ_PATTERN}' found in '{data_dir}'.")
         return
 
-    print(f"Found {len(files)} files matching pattern.")
-
-    print(f"Validating Virtuoso access to directory/files...")
+    logger.info(f"Found {len(files)} files matching pattern.")
 
     test_file_host = files[0]
     if args.container_data_directory:
@@ -188,7 +173,7 @@ def bulk_load(
     test_file_sql_escaped = test_file_container.replace("'", "''")
     test_sql = f"SELECT file_stat('{test_file_sql_escaped}');"
 
-    success, stdout, stderr = run_isql_command(args, sql_command=test_sql, capture=True)
+    success, _, stderr = run_isql_command(args, sql_command=test_sql, capture=True)
     if not success or "Security violation" in stderr or "cannot" in stderr:
         raise RuntimeError(
             f"Virtuoso cannot access the data files.\n"
@@ -197,10 +182,6 @@ def bulk_load(
             f"  Error: {stderr}"
         )
 
-    print(f"Virtuoso can access the data files.")
-
-    print(f"Registering files in directory '{container_dir}' with Virtuoso...")
-
     ld_function = "ld_dir_all" if args.recursive else "ld_dir"
 
     container_dir_sql_escaped = container_dir.replace("'", "''")
@@ -208,32 +189,26 @@ def bulk_load(
     placeholder_graph_sql_escaped = DEFAULT_PLACEHOLDER_GRAPH.replace("'", "''")
 
     register_sql = f"{ld_function}('{container_dir_sql_escaped}', '{file_pattern_sql_escaped}', '{placeholder_graph_sql_escaped}');"
-    print(f"Executing: {register_sql}")
-    success_reg, stdout_reg, stderr_reg = run_isql_command(args, sql_command=register_sql, capture=True)
+    success_reg, _, stderr_reg = run_isql_command(args, sql_command=register_sql, capture=True)
 
     if not success_reg or "Unable to list files" in stderr_reg or "FA020" in stderr_reg:
         raise RuntimeError(f"Failed to register files using {ld_function}.\nError: {stderr_reg}")
 
-    print(f"Successfully registered files using {ld_function}.")
-
-    print(f"\nStarting sequential rdf_loader_run() process...")
+    logger.info(f"Registered files using {ld_function}.")
     start_load_time = time.time()
 
     loader_sql = "rdf_loader_run();"
-    success_load, stdout_load, stderr_load = run_isql_command(args, sql_command=loader_sql)
+    success_load, _, stderr_load = run_isql_command(args, sql_command=loader_sql)
 
     load_duration = time.time() - start_load_time
 
     if success_load:
-        print(f"rdf_loader_run() completed in {load_duration:.2f} seconds.")
+        logger.info(f"rdf_loader_run() completed in {load_duration:.2f} seconds.")
     else:
-        print(f"Error: rdf_loader_run() failed after {load_duration:.2f} seconds.")
-        print(f"  Error: {stderr_load}")
-
-    print("\nChecking load status from DB.DBA.load_list...")
+        raise RuntimeError(f"rdf_loader_run() failed after {load_duration:.2f} seconds.\nError: {stderr_load}")
 
     stats_sql = "SELECT COUNT(*) AS total_files, SUM(CASE WHEN ll_state = 2 THEN 1 ELSE 0 END) AS loaded, SUM(CASE WHEN ll_state <> 2 OR ll_error IS NOT NULL THEN 1 ELSE 0 END) AS issues FROM DB.DBA.load_list;"
-    success_stats, stdout_stats, stderr_stats = run_isql_command(args, sql_command=stats_sql, capture=True)
+    success_stats, stdout_stats, _ = run_isql_command(args, sql_command=stats_sql, capture=True)
 
     if success_stats:
         lines = stdout_stats.strip().splitlines()
@@ -245,14 +220,7 @@ def bulk_load(
                     loaded_files = int(parts[1]) if parts[1] != "NULL" else 0
                     issues = int(parts[2]) if parts[2] != "NULL" else 0
 
-                    print(f"Load statistics:")
-                    print(f"  - Total files: {total_files}")
-                    print(f"  - Loaded files: {loaded_files}")
-                    print(f"  - Issues: {issues}")
-
-                    if total_files == loaded_files and issues == 0:
-                        print("All files loaded successfully!")
-                    else:
+                    if total_files != loaded_files or issues != 0:
                         failed_sql = "SELECT ll_file FROM DB.DBA.load_list WHERE ll_state <> 2 OR ll_error IS NOT NULL;"
                         success_failed, stdout_failed, _ = run_isql_command(args, sql_command=failed_sql, capture=True)
                         failed_files = []
@@ -267,14 +235,12 @@ def bulk_load(
                         )
                     break
 
-    print("\nRestoring default settings and running final checkpoint...")
-
     cleanup_sql = f"log_enable(3, 1); checkpoint; checkpoint_interval({CHECKPOINT_INTERVAL}); scheduler_interval({SCHEDULER_INTERVAL});"
     success_final, _, stderr_final = run_isql_command(args, sql_command=cleanup_sql)
     if not success_final:
         raise RuntimeError(f"Failed to run final checkpoint.\nError details: {stderr_final}")
 
-    print("Checkpoint successful.")
+    logger.info("Final checkpoint completed.")
 
 
 def main():
@@ -314,6 +280,8 @@ IMPORTANT:
                         help="Virtuoso password.")
     parser.add_argument("--recursive", action='store_true',
                         help="Load files recursively from subdirectories (uses ld_dir_all).")
+    parser.add_argument("--log-level", default="ERROR", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                        help="Logging level (Default: ERROR).")
 
     docker_group = parser.add_argument_group('Docker Options')
     docker_group.add_argument("--docker-container",
@@ -329,11 +297,12 @@ IMPORTANT:
             port=args.port,
             user=args.user,
             recursive=args.recursive,
-            docker_container=args.docker_container
+            docker_container=args.docker_container,
+            log_level=args.log_level
         )
         sys.exit(0)
     except RuntimeError as e:
-        print(f"\nError: {e}", file=sys.stderr)
+        logger.error(str(e))
         sys.exit(1)
 
 
