@@ -4,3 +4,14 @@ virtuoso-meta-prov
 .cursor
 virtuoso-data*
 virtuoso-meta*
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+*.pyc
+
+# Test artifacts
+tests/test_virtuoso_db/
+tests/test_data/*.nq.gz
+tests/test_data/subdir/

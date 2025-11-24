@@ -104,12 +104,14 @@ def run_isql_command(
                 print(f"Error reading SQL script file '{script_path}': {e}", file=sys.stderr)
                 return False, "", str(e)
 
+        docker_internal_host = "localhost"
+        docker_internal_port = 1111
         command_to_run = [
             args.docker_path,
             'exec',
             args.docker_container,
             args.docker_isql_path,
-            f"{args.host}:{args.port}",
+            f"{docker_internal_host}:{docker_internal_port}",
             args.user,
             args.password,
             f"exec={exec_content}"
