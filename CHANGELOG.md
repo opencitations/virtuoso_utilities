@@ -1,3 +1,21 @@
+# [1.5.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.4.1...v1.5.0) (2025-11-24)
+
+
+### Bug Fixes
+
+* **bulk_load:** [release] remove non-essential functionality and defensive checks ([1874e27](https://github.com/opencitations/virtuoso_utilities/commit/1874e27bb2e1f625f36b4c3f901088ebf9a1e88b))
+* **bulk_load:** replace print statements with configurable logging system ([5d5baca](https://github.com/opencitations/virtuoso_utilities/commit/5d5bacabfb6c5be35b25755f802d80145579cc11))
+
+
+### Features
+
+* make bulk_load importable as Python library and add test suite ([be9d3e4](https://github.com/opencitations/virtuoso_utilities/commit/be9d3e4098a765cd67ec5c42612080e56d4951a2))
+
+
+### Performance Improvements
+
+* **tests:** optimize integration test execution time ([f42440a](https://github.com/opencitations/virtuoso_utilities/commit/f42440a8ebdcefd25f893ba9affdd4a4a6132759))
+
 ## [1.4.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.4.0...v1.4.1) (2025-11-20)
 
 
