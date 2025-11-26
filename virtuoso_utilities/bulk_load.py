@@ -125,7 +125,7 @@ def bulk_load(
 
     # Clean up any leftover entries from previous bulk loads
     cleanup_sql = "DELETE FROM DB.DBA.load_list;"
-    run_isql_command(args, sql_command=cleanup_sql, capture=True)
+    run_isql_command(args, sql_command=cleanup_sql)
 
     ld_function = "ld_dir_all" if args.recursive else "ld_dir"
 
