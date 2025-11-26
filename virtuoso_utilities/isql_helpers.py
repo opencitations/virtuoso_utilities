@@ -13,15 +13,14 @@ from typing import Union
 def _run_subprocess(
     command: Union[list[str], str],
     use_shell: bool = False,
-    capture: bool = False,
     encoding: str = 'utf-8'
 ) -> tuple[int, str, str]:
-    """Internal helper to run a subprocess command."""
+    """Internal helper to run a subprocess command. Always captures output."""
     try:
         process = subprocess.run(
             command,
             shell=use_shell,
-            capture_output=capture,
+            capture_output=True,
             text=True,
             check=False,
             encoding=encoding
@@ -32,18 +31,17 @@ def _run_subprocess(
     except Exception as e:
         print(f"Subprocess execution failed: {e}", file=sys.stderr)
         print(f"Command: {command}", file=sys.stderr)
-        return -1, "", str(e) # Use -1 to indicate internal error
+        return -1, "", str(e)
 
 def run_isql_command(
     args: argparse.Namespace,
     sql_command: Union[str, None] = None,
     script_path: Union[str, None] = None,
-    capture: bool = False,
     ignore_errors: bool = False
 ) -> tuple[bool, str, str]:
     """
     Executes a SQL command or script using the 'isql' utility, either directly
-    or via 'docker exec'.
+    or via 'docker exec'. Output is always captured and only shown on error.
 
     Exactly one of `sql_command` or `script_path` must be provided.
 
@@ -57,7 +55,6 @@ def run_isql_command(
                                    isql_path.
         sql_command (Union[str, None]): The SQL command string to execute.
         script_path (Union[str, None]): The path to the SQL script file to execute.
-        capture (bool): If True, capture stdout and stderr.
         ignore_errors (bool): If True, print errors but return True anyway.
 
     Returns:
@@ -153,7 +150,7 @@ def run_isql_command(
             command_to_run = " ".join(base_command_list)
 
     try:
-        returncode, stdout, stderr = _run_subprocess(command_to_run, use_shell=use_shell, capture=capture)
+        returncode, stdout, stderr = _run_subprocess(command_to_run, use_shell=use_shell)
 
         if returncode != 0:
             # Handle specific FileNotFoundError after subprocess call

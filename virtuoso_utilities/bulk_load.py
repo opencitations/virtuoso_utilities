@@ -130,7 +130,7 @@ def bulk_load(
 
     # Use empty string to let Virtuoso read graph URIs from nquads (4th field)
     register_sql = f"{ld_function}('{container_dir_sql_escaped}', '{file_pattern_sql_escaped}', '');"
-    success_reg, _, stderr_reg = run_isql_command(args, sql_command=register_sql, capture=True)
+    success_reg, _, stderr_reg = run_isql_command(args, sql_command=register_sql)
 
     if not success_reg or "Unable to list files" in stderr_reg or "FA020" in stderr_reg:
         raise RuntimeError(f"Failed to register files using {ld_function}.\nError: {stderr_reg}")
@@ -142,7 +142,7 @@ def bulk_load(
         raise RuntimeError(f"rdf_loader_run() failed.\nError: {stderr_load}")
 
     stats_sql = "SELECT COUNT(*) AS total_files, SUM(CASE WHEN ll_state = 2 THEN 1 ELSE 0 END) AS loaded, SUM(CASE WHEN ll_state <> 2 OR ll_error IS NOT NULL THEN 1 ELSE 0 END) AS issues FROM DB.DBA.load_list;"
-    success_stats, stdout_stats, _ = run_isql_command(args, sql_command=stats_sql, capture=True)
+    success_stats, stdout_stats, _ = run_isql_command(args, sql_command=stats_sql)
 
     if success_stats:
         lines = stdout_stats.strip().splitlines()
@@ -156,7 +156,7 @@ def bulk_load(
 
                     if total_files != loaded_files or issues != 0:
                         failed_sql = "SELECT ll_file FROM DB.DBA.load_list WHERE ll_state <> 2 OR ll_error IS NOT NULL;"
-                        success_failed, stdout_failed, _ = run_isql_command(args, sql_command=failed_sql, capture=True)
+                        success_failed, stdout_failed, _ = run_isql_command(args, sql_command=failed_sql)
                         failed_files = []
                         if success_failed:
                             for line in stdout_failed.strip().splitlines():
@@ -244,4 +244,4 @@ IMPORTANT:
 
 
 if __name__ == "__main__":
-    main() 
+    main()
