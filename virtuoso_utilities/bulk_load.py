@@ -123,6 +123,10 @@ def bulk_load(
         logger.warning(f"No files matching '{NQ_GZ_PATTERN}' found in '{data_dir}'.")
         return
 
+    # Clean up any leftover entries from previous bulk loads
+    cleanup_sql = "DELETE FROM DB.DBA.load_list;"
+    run_isql_command(args, sql_command=cleanup_sql, capture=True)
+
     ld_function = "ld_dir_all" if args.recursive else "ld_dir"
 
     container_dir_sql_escaped = container_dir.replace("'", "''")
