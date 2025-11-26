@@ -1,3 +1,10 @@
+## [1.5.3](https://github.com/opencitations/virtuoso_utilities/compare/v1.5.2...v1.5.3) (2025-11-26)
+
+
+### Bug Fixes
+
+* **ci:** require tests to pass before release workflow ([8211d40](https://github.com/opencitations/virtuoso_utilities/commit/8211d401cbd30756834a891a8588aa1502216259))
+
 ## [1.5.2](https://github.com/opencitations/virtuoso_utilities/compare/v1.5.1...v1.5.2) (2025-11-26)
 
 
