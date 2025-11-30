@@ -27,37 +27,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Setup Poetry
-        uses: snok/install-poetry@v1
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Cache Poetry dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-${{ matrix.python-version }}-
+        run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: poetry install --with dev
+        run: uv sync --group dev
 
       - name: Run tests with coverage
         run: |
-          poetry run pytest -v --cov=virtuoso_utilities --cov-report=xml --cov-report=term
+          uv run pytest -v --cov=virtuoso_utilities --cov-report=xml --cov-report=term
           echo "=== Coverage Report ==="
-          poetry run coverage report
-          echo "COVERAGE=$(poetry run coverage report | grep TOTAL | awk '{print $4}')" >> $GITHUB_ENV
+          uv run coverage report
+          echo "COVERAGE=$(uv run coverage report | grep TOTAL | awk '{print $4}')" >> $GITHUB_ENV
 
       - name: Generate HTML coverage report
-        run: poetry run coverage html -d htmlcov
+        run: uv run coverage html -d htmlcov
 
       - name: Upload coverage artifact
         if: matrix.python-version == '3.10' && github.ref == 'refs/heads/master'

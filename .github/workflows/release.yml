@@ -25,19 +25,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
-      - name: Setup Poetry
-        uses: snok/install-poetry@v1
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+      - name: Set up Python
+        run: uv python install 3.10
 
       - name: Install dependencies
-        run: poetry install
+        run: uv sync
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -52,7 +47,7 @@ jobs:
           npm install -g @semantic-release/exec
 
       - name: Build package
-        run: poetry build
+        run: uv build
 
       - name: Create Release
         env:
@@ -63,6 +58,4 @@ jobs:
         if: success()
         env:
           PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          poetry config pypi-token.pypi $PYPI_API_TOKEN
-          poetry publish 
+        run: uv publish --token $PYPI_API_TOKEN

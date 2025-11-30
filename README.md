@@ -3,7 +3,8 @@
 [![Tests](https://github.com/opencitations/virtuoso_utilities/actions/workflows/test.yml/badge.svg)](https://github.com/opencitations/virtuoso_utilities/actions/workflows/test.yml)
 [![Coverage](https://byob.yarr.is/arcangelo7/badges/opencitations-virtuoso-utilities-coverage-master)](https://opencitations.github.io/virtuoso_utilities/)
 [![Python Versions](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/opencitations/virtuoso_utilities)
-[![Lines of Code](https://tokei.rs/b1/github/opencitations/virtuoso_utilities)](https://github.com/opencitations/virtuoso_utilities)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Code Size](https://img.shields.io/github/languages/code-size/opencitations/virtuoso_utilities)](https://github.com/opencitations/virtuoso_utilities)
 [![License](https://img.shields.io/badge/license-ISC-green)](https://github.com/opencitations/virtuoso_utilities/blob/master/LICENSE)
 
 A collection of Python utilities for interacting with OpenLink Virtuoso.
@@ -32,7 +33,7 @@ A collection of Python utilities for interacting with OpenLink Virtuoso.
 
 ## Installation
 
-This package can be installed in two ways: globally using `pipx` for easy command-line access, or locally using Poetry for development.
+This package can be installed in two ways: globally using `pipx` for easy command-line access, or locally using uv for development.
 
 ### Global Installation with pipx (Recommended for end users)
 
@@ -72,9 +73,9 @@ This package can be installed in two ways: globally using `pipx` for easy comman
     virtuoso-rebuild-index --help
     ```
 
-### Local Development Installation with Poetry
+### Local Development Installation with uv
 
-For development or if you prefer to use Poetry:
+For development or if you prefer to use [uv](https://github.com/astral-sh/uv):
 
 1.  **Clone the repository:**
     ```bash
@@ -83,12 +84,12 @@ For development or if you prefer to use Poetry:
     ```
 2.  **Install dependencies:**
     ```bash
-    poetry install
+    uv sync --group dev
     ```
 
-3.  **Run scripts with Poetry:**
+3.  **Run scripts with uv:**
     ```bash
-    poetry run python virtuoso_utilities/launch_virtuoso.py --help
+    uv run python virtuoso_utilities/launch_virtuoso.py --help
     ```
 
 **Prerequisites:**
@@ -107,8 +108,8 @@ The script provides a convenient way to launch a Virtuoso database using Docker 
 # With pipx (global installation)
 virtuoso-launch
 
-# With Poetry (development)
-poetry run python virtuoso_utilities/launch_virtuoso.py
+# With uv (development)
+uv run python virtuoso_utilities/launch_virtuoso.py
 ```
 
 This launches a Virtuoso container with default settings.
@@ -130,8 +131,8 @@ virtuoso-launch \
     --wait-ready \
     --enable-write-permissions
 
-# With Poetry (development)
-poetry run python virtuoso_utilities/launch_virtuoso.py \
+# With uv (development)
+uv run python virtuoso_utilities/launch_virtuoso.py \
     --name my-virtuoso \
     --http-port 8891 \
     --isql-port 1112 \
@@ -147,7 +148,7 @@ poetry run python virtuoso_utilities/launch_virtuoso.py \
 
 **Arguments:**
 
-Use `virtuoso-launch --help` (or `poetry run python virtuoso_utilities/launch_virtuoso.py --help`) to see all available options:
+Use `virtuoso-launch --help` (or `uv run python virtuoso_utilities/launch_virtuoso.py --help`) to see all available options:
 
 *   `--name`: Name for the Docker container (Default: `virtuoso`).
 *   `--http-port`: HTTP port to expose Virtuoso on (Default: `8890`).
@@ -165,6 +166,8 @@ Use `virtuoso-launch --help` (or `poetry run python virtuoso_utilities/launch_vi
 *   `--enable-write-permissions`: Enable write permissions for 'nobody' and 'SPARQL' users. This makes the database publicly writable and is useful for development or specific use cases where an open SPARQL endpoint is needed. This option forces the script to wait for the container to be ready before applying permissions.
 *   `--detach`: Run container in detached mode.
 *   `--force-remove`: Force removal of existing container with the same name.
+*   `--virtuoso-version`: Virtuoso Docker image version/tag (e.g., `latest`, `7.2.11`).
+*   `--virtuoso-sha`: Virtuoso Docker image SHA256 digest. Takes precedence over `--virtuoso-version` if both are specified.
 
 #### Memory-Based Configuration
 
@@ -218,7 +221,7 @@ For more detailed information on Virtuoso performance tuning, refer to the [offi
 
 #### Client SQL Timeouts
 
-To ensure reliable operation of the dump utility, Virtuoso must not abort long-running operations due to client timeouts. The launcher enforces the following settingsd in `[Client]` of `virtuoso.ini`: `SQL_QUERY_TIMEOUT = 0` and `SQL_TXN_TIMEOUT = 0`.
+To ensure reliable operation of the dump utility, Virtuoso must not abort long-running operations due to client timeouts. The launcher enforces the following settings in `[Client]` of `virtuoso.ini`: `SQL_QUERY_TIMEOUT = 0` and `SQL_TXN_TIMEOUT = 0`.
 
 ### Sequential Bulk Loader ([`bulk_load.py`](https://github.com/opencitations/virtuoso_utilities/blob/master/virtuoso_utilities/bulk_load.py))
 
@@ -248,8 +251,8 @@ virtuoso-bulk-load \
     -d /path/accessible/by/virtuoso/server \
     -k <your_virtuoso_password>
 
-# With Poetry (development)
-poetry run python virtuoso_utilities/bulk_load.py \
+# With uv (development)
+uv run python virtuoso_utilities/bulk_load.py \
     -d /path/accessible/by/virtuoso/server \
     -k <your_virtuoso_password>
 ```
@@ -266,8 +269,8 @@ virtuoso-bulk-load \
     --user <virtuoso_user> \
     --recursive
 
-# With Poetry (development)
-poetry run python virtuoso_utilities/bulk_load.py \
+# With uv (development)
+uv run python virtuoso_utilities/bulk_load.py \
     -d /path/accessible/by/virtuoso/server \
     -k <your_virtuoso_password> \
     --host <virtuoso_host> \
@@ -297,17 +300,18 @@ virtuoso-bulk-load \
 
 **Arguments:**
 
-Use `virtuoso-bulk-load --help` (or `poetry run python virtuoso_utilities/bulk_load.py --help`) to see all available options:
+Use `virtuoso-bulk-load --help` (or `uv run python virtuoso_utilities/bulk_load.py --help`) to see all available options:
 
 *   `-d`, `--data-directory`: **Required.** Path where the script will search for N-Quads Gzipped (`.nq.gz`) files to register using `ld_dir` or `ld_dir_all`. **Meaning depends on context:**
     *   If using Docker (`--docker-container`): This must be the **absolute path inside the container** (e.g., `/rdf_mount_in_container`) accessible by Virtuoso.
     *   If *not* using Docker: This must be the **path on the host system** accessible by the Virtuoso server process.
     *   In either case, this path **must** be listed in the relevant `DirsAllowed` setting.
-*   `-k`, `--password`: **Required.** Virtuoso `dba` user password (Default: `dba`).
+*   `-k`, `--password`: **Required.** Virtuoso `dba` user password.
 *   `-H`, `--host`: Virtuoso server host (Default: `localhost`).
 *   `-P`, `--port`: Virtuoso server ISQL port (Default: `1111`). Use the *host* port if mapped via Docker.
 *   `-u`, `--user`: Virtuoso username (Default: `dba`).
 *   `--recursive`: Search for `.nq.gz` files recursively within the data directory (uses `ld_dir_all` instead of `ld_dir`).
+*   `--log-level`: Logging level. Choices: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (Default: `ERROR`).
 
 **Docker Options:**
 *   `--docker-container`: Name or ID of the running Virtuoso Docker container. If provided, `isql` will be run via `docker exec`.
@@ -324,7 +328,7 @@ This script provides a comprehensive solution to export the entire content of a 
 *   **Automatic Graph Filtering:** The procedure automatically excludes internal `virtrdf:` graphs while including all user data graphs.
 *   **Automatic Compression:** Output files are automatically compressed as .nq.gz files for space efficiency (can be disabled).
 *   **Configurable File Size Limits:** Control the maximum size of individual dump files to prevent excessively large files.
-*   **Sequential File Numbering:** Files are numbered sequentially (output000001.nq.gz, output000002.nq.gz, etc.) with configurable starting numbers.
+*   **Sequential File Numbering:** Files are numbered sequentially (output000001.nq.gz, output000002.nq.gz, etc.).
 *   **Docker Integration:** Full support for Docker-based Virtuoso instances.
 
 **Important Prerequisites:**
@@ -340,8 +344,8 @@ virtuoso-dump \
     --password <your_virtuoso_password> \
     --output-dir ./virtuoso_dump
 
-# With Poetry (development)
-poetry run python virtuoso_utilities/dump_quadstore.py \
+# With uv (development)
+uv run python virtuoso_utilities/dump_quadstore.py \
     --password <your_virtuoso_password> \
     --output-dir ./virtuoso_dump
 ```
@@ -355,29 +359,27 @@ virtuoso-dump \
     --output-dir ./virtuoso_dump \
     --file-length-limit 50000000
 
-# With Poetry (development)
-poetry run python virtuoso_utilities/dump_quadstore.py \
+# With uv (development)
+uv run python virtuoso_utilities/dump_quadstore.py \
     --password <your_virtuoso_password> \
     --output-dir ./virtuoso_dump \
     --file-length-limit 50000000
 ```
 
-**Export Uncompressed Files Starting from output000005.nq:**
+**Export Uncompressed Files:**
 
 ```bash
 # With pipx (global installation)
 virtuoso-dump \
     --password <your_virtuoso_password> \
     --output-dir ./virtuoso_dump \
-    --no-compression \
-    --start-from 5
+    --no-compression
 
-# With Poetry (development)
-poetry run python virtuoso_utilities/dump_quadstore.py \
+# With uv (development)
+uv run python virtuoso_utilities/dump_quadstore.py \
     --password <your_virtuoso_password> \
     --output-dir ./virtuoso_dump \
-    --no-compression \
-    --start-from 5
+    --no-compression
 ```
 
 **Usage with Docker:**
@@ -400,7 +402,7 @@ virtuoso-dump \
 
 **Arguments:**
 
-Use `virtuoso-dump --help` (or `poetry run python virtuoso_utilities/dump_quadstore.py --help`) to see all available options:
+Use `virtuoso-dump --help` (or `uv run python virtuoso_utilities/dump_quadstore.py --help`) to see all available options:
 
 **Connection Parameters:**
 *   `-H`, `--host`: Virtuoso server host (Default: `localhost`).
@@ -448,8 +450,8 @@ In some cases, the Full-Text index may need to be recreated if unexpected result
 # With pipx (global installation)
 virtuoso-rebuild-index --password <your_virtuoso_password>
 
-# With Poetry (development)
-poetry run python virtuoso_utilities/rebuild_fulltext_index.py --password <your_virtuoso_password>
+# With uv (development)
+uv run python virtuoso_utilities/rebuild_fulltext_index.py --password <your_virtuoso_password>
 ```
 
 **Usage with Docker:**
@@ -460,18 +462,22 @@ virtuoso-rebuild-index \
     --password <your_virtuoso_password> \
     --docker-container my-virtuoso
 
-# With Poetry (development)
-poetry run python virtuoso_utilities/rebuild_fulltext_index.py \
+# With uv (development)
+uv run python virtuoso_utilities/rebuild_fulltext_index.py \
     --password <your_virtuoso_password> \
     --docker-container my-virtuoso
 ```
 
 **Arguments:**
 
-Use `virtuoso-rebuild-index --help` (or `poetry run python virtuoso_utilities/rebuild_fulltext_index.py --help`) to see all available options:
+Use `virtuoso-rebuild-index --help` (or `uv run python virtuoso_utilities/rebuild_fulltext_index.py --help`) to see all available options:
 
 *   `--host`: Virtuoso host (Default: `localhost`).
 *   `--port`: Virtuoso ISQL port (Default: `1111`).
 *   `--user`: Virtuoso username (Default: `dba`).
 *   `--password`: Virtuoso password (Default: `dba`).
-*   `--docker-container`: Name or ID of the running Virtuoso Docker container. If specified, `isql` commands are run via `docker exec`, and `-d` refers to the path *inside* the container.
+*   `--docker-container`: Name or ID of the running Virtuoso Docker container. If specified, `isql` commands are run via `docker exec`.
+*   `--restart-container`: Restart Docker container after rebuilding the index. Only applicable when using `--docker-container`.
+*   `--docker-path`: Path to docker executable (Default: `docker`).
+*   `--docker-isql-path`: Path to isql inside container (Default: `isql`).
+*   `--isql-path`: Path to isql executable on host (Default: `isql`).
