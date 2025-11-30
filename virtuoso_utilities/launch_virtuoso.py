@@ -737,9 +737,9 @@ def run_docker_command(cmd: List[str], capture_output=False, check=True, suppres
          raise
 
 
-def enable_write_permissions(args: argparse.Namespace) -> bool:
+def grant_write_permissions(args: argparse.Namespace) -> bool:
     """
-    Enables write permissions for 'nobody' and 'SPARQL' users.
+    Grant write permissions for 'nobody' and 'SPARQL' users.
 
     Args:
         args: Command-line arguments containing connection details.
@@ -747,7 +747,7 @@ def enable_write_permissions(args: argparse.Namespace) -> bool:
     Returns:
         bool: True if permissions were set successfully, False otherwise.
     """
-    print("Enabling write permissions for 'nobody' and 'SPARQL' users...")
+    print("Granting write permissions for 'nobody' and 'SPARQL' users...")
 
     isql_helper_args = argparse.Namespace(
         host="localhost",
@@ -779,120 +779,171 @@ def enable_write_permissions(args: argparse.Namespace) -> bool:
     return success1 and success2
 
 
-def main() -> int:  # pragma: no cover
+def launch_virtuoso(  # pragma: no cover
+    name: str = "virtuoso",
+    data_dir: str = "./virtuoso-data",
+    http_port: int = 8890,
+    isql_port: int = 1111,
+    memory: str = None,
+    dba_password: str = "dba",
+    detach: bool = True,
+    wait_ready: bool = True,
+    enable_write_permissions: bool = False,
+    force_remove: bool = False,
+    extra_volumes: list = None,
+    network: str = None,
+    cpu_limit: float = 0,
+    virtuoso_version: str = None,
+    virtuoso_sha: str = None,
+    estimated_db_size_gb: float = 0,
+) -> None:
     """
-    Main function to launch Virtuoso with Docker.
-    """
-    args = parse_arguments()
+    Launch Virtuoso Docker container.
 
+    Args:
+        name: Container name
+        data_dir: Host directory for Virtuoso data
+        http_port: HTTP port to expose
+        isql_port: ISQL port to expose
+        memory: Memory limit (e.g., "4g"). Auto-calculated from host RAM if None.
+        dba_password: DBA password
+        detach: Run in detached mode
+        wait_ready: Wait for Virtuoso to be ready
+        enable_write_permissions: Enable SPARQL write permissions for 'nobody' and 'SPARQL' users
+        force_remove: Force remove existing container with same name
+        extra_volumes: Additional volumes to mount (list of "host:container" strings)
+        network: Docker network to connect
+        cpu_limit: CPU limit (0 = no limit)
+        virtuoso_version: Docker image version tag
+        virtuoso_sha: Docker image SHA digest (takes precedence over version)
+        estimated_db_size_gb: Estimated DB size for MaxCheckpointRemap config
+
+    Raises:
+        RuntimeError: If Docker is not installed or launch fails
+    """
     if not check_docker_installed():
-        print("Error: Docker command not found. Please install Docker.", file=sys.stderr)
-        return 1
+        raise RuntimeError("Docker command not found. Please install Docker.")
 
-    host_data_dir_abs = os.path.abspath(args.data_dir)
+    if memory is None:
+        if psutil:
+            try:
+                total_host_ram = psutil.virtual_memory().total
+                default_mem_bytes = max(int(total_host_ram * (2/3)), 1 * 1024**3)
+                memory = bytes_to_docker_mem_str(default_mem_bytes)
+            except Exception:
+                memory = "2g"
+        else:
+            memory = "2g"
+
+    number_of_buffers, max_dirty_buffers = get_optimal_buffer_values(memory)
+
+    args = argparse.Namespace(
+        name=name,
+        data_dir=data_dir,
+        http_port=http_port,
+        isql_port=isql_port,
+        memory=memory,
+        dba_password=dba_password,
+        detach=detach,
+        wait_ready=wait_ready,
+        enable_write_permissions=enable_write_permissions,
+        force_remove=force_remove,
+        extra_volumes=extra_volumes,
+        network=network,
+        cpu_limit=cpu_limit,
+        virtuoso_version=virtuoso_version,
+        virtuoso_sha=virtuoso_sha,
+        estimated_db_size_gb=estimated_db_size_gb,
+        number_of_buffers=number_of_buffers,
+        max_dirty_buffers=max_dirty_buffers,
+    )
+
+    host_data_dir_abs = os.path.abspath(data_dir)
     ini_file_path = os.path.join(host_data_dir_abs, "virtuoso.ini")
 
     docker_cmd, unique_paths_to_allow = build_docker_run_command(args)
     dirs_allowed_str = ",".join(unique_paths_to_allow) if unique_paths_to_allow else None
 
-    update_ini_memory_settings(ini_file_path, host_data_dir_abs, args.number_of_buffers, args.max_dirty_buffers, dirs_allowed=dirs_allowed_str)
+    update_ini_memory_settings(
+        ini_file_path, host_data_dir_abs, number_of_buffers, max_dirty_buffers, dirs_allowed=dirs_allowed_str
+    )
 
-    container_exists = check_container_exists(args.name)
-
-    if container_exists:
-        print(f"Checking status of existing container '{args.name}'...")
-        # Check if it's running
+    if check_container_exists(name):
         result = subprocess.run(
-            [DOCKER_EXEC_PATH, "ps", "--filter", f"name=^{args.name}$", "--format", "{{.Status}}"],
+            [DOCKER_EXEC_PATH, "ps", "--filter", f"name=^{name}$", "--format", "{{.Status}}"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
         is_running = "Up" in result.stdout
 
-        if args.force_remove:
-            print(f"Container '{args.name}' already exists. Forcing removal...")
-            if not remove_container(args.name):
-                print(f"Error: Failed to remove existing container '{args.name}'", file=sys.stderr)
-                return 1
+        if force_remove:
+            print(f"Container '{name}' already exists. Forcing removal...")
+            if not remove_container(name):
+                raise RuntimeError(f"Failed to remove existing container '{name}'")
         elif is_running:
-             print(f"Error: Container '{args.name}' is already running. Stop it first or use --force-remove.", file=sys.stderr)
-             return 1
-        else: # Exists but not running
-             print(f"Container '{args.name}' exists but is stopped. Removing it before starting anew...")
-             if not remove_container(args.name):
-                print(f"Error: Failed to remove existing stopped container '{args.name}'", file=sys.stderr)
-                return 1
-
-    # Build the command and get paths for logging
-    docker_cmd, unique_paths_to_allow = build_docker_run_command(args)
+            raise RuntimeError(f"Container '{name}' is already running. Stop it first or use force_remove=True.")
+        else:
+            print(f"Container '{name}' exists but is stopped. Removing...")
+            if not remove_container(name):
+                raise RuntimeError(f"Failed to remove existing stopped container '{name}'")
 
     try:
-        run_docker_command(docker_cmd, check=not args.detach) # Don't check exit code if detached
+        run_docker_command(docker_cmd, check=not detach)
 
-        should_wait = args.wait_ready or args.enable_write_permissions
+        should_wait = wait_ready or enable_write_permissions
 
-        if args.detach and should_wait:
+        if detach and should_wait:
             print("Waiting for Virtuoso readiness...")
             ready = wait_for_virtuoso_ready(
-                args.name,
-                "localhost", # Assuming ISQL check connects via localhost mapping
-                args.isql_port,
-                args.dba_password,
-                timeout=DEFAULT_WAIT_TIMEOUT
+                name, "localhost", isql_port, dba_password, timeout=DEFAULT_WAIT_TIMEOUT
             )
             if not ready:
-                print("Warning: Container started in detached mode but readiness check timed out or failed.", file=sys.stderr)
-            elif args.enable_write_permissions:
-                if not enable_write_permissions(args):
-                    print("Warning: One or more commands to enable write permissions failed. Check logs above.", file=sys.stderr)
+                raise RuntimeError("Virtuoso readiness check timed out or failed.")
 
-        elif not args.detach:
-             print("Virtuoso container exited.")
-             return 0 # Assume normal exit if not detached and no exception
+            if enable_write_permissions:
+                if not grant_write_permissions(args):
+                    print("Warning: One or more commands to enable write permissions failed.", file=sys.stderr)
 
+        print(f"Virtuoso launched successfully on http://localhost:{http_port}/sparql")
 
-        print(f"""
-Virtuoso launched successfully!
-- Data Directory Host: {host_data_dir_abs}
-- Data Directory Container: {DEFAULT_CONTAINER_DATA_DIR}
-- Web interface: http://localhost:{args.http_port}/conductor
-- ISQL access (Host): isql localhost:{args.isql_port} dba {args.dba_password}
-- ISQL access (Inside container): isql localhost:1111 dba {args.dba_password}
-- Container name: {args.name}
-""")
-        if args.extra_volumes:
-            print("Additional mounted volumes:")
-            for volume_spec in args.extra_volumes:
-                 if ':' in volume_spec:
-                    host_path, container_path = volume_spec.split(':', 1)
-                    container_path_abs = container_path if container_path.startswith('/') else '/' + container_path
-                    print(f"  - Host: {os.path.abspath(host_path)} -> Container: {container_path_abs}")
-        if unique_paths_to_allow:
-             print(f"DirsAllowed set in container via environment variable to: {', '.join(unique_paths_to_allow)}")
-
-        return 0
-
-    except subprocess.CalledProcessError:
-        print("\nVirtuoso launch failed. Check Docker logs for errors.", file=sys.stderr)
-        # Attempt cleanup only if the container was meant to be persistent (detached)
-        # or if we know it might have been created partially.
-        if args.detach and check_container_exists(args.name):
-             print(f"Attempting to stop potentially problematic container '{args.name}' ...", file=sys.stderr)
-             run_docker_command([DOCKER_EXEC_PATH, "stop", args.name], suppress_error=True, check=False)
-             print(f"Attempting to remove potentially problematic container '{args.name}' ...", file=sys.stderr)
-             run_docker_command([DOCKER_EXEC_PATH, "rm", args.name], suppress_error=True, check=False)
-
-        return 1
+    except subprocess.CalledProcessError as e:
+        if detach and check_container_exists(name):
+            run_docker_command([DOCKER_EXEC_PATH, "stop", name], suppress_error=True, check=False)
+            run_docker_command([DOCKER_EXEC_PATH, "rm", name], suppress_error=True, check=False)
+        raise RuntimeError(f"Virtuoso launch failed: {e}")
     except FileNotFoundError:
-         # Error already printed by run_docker_command
-         return 1
-    except Exception as e:
-        print(f"\nAn unexpected error occurred during launch: {e}", file=sys.stderr)
-        if check_container_exists(args.name):
-             print(f"Attempting to stop/remove potentially problematic container '{args.name}' due to unexpected error...", file=sys.stderr)
-             run_docker_command([DOCKER_EXEC_PATH, "stop", args.name], suppress_error=True, check=False)
-             run_docker_command([DOCKER_EXEC_PATH, "rm", args.name], suppress_error=True, check=False)
+        raise RuntimeError("Docker command not found.")
+
+
+def main() -> int: # pragma: no cover
+    """
+    CLI entry point that parses arguments and calls launch_virtuoso().
+    """
+    args = parse_arguments()
+
+    try:
+        launch_virtuoso(
+            name=args.name,
+            data_dir=args.data_dir,
+            http_port=args.http_port,
+            isql_port=args.isql_port,
+            memory=args.memory,
+            dba_password=args.dba_password,
+            detach=args.detach,
+            wait_ready=args.wait_ready,
+            enable_write_permissions=args.enable_write_permissions,
+            force_remove=args.force_remove,
+            extra_volumes=args.extra_volumes,
+            network=args.network,
+            cpu_limit=args.cpu_limit,
+            virtuoso_version=args.virtuoso_version,
+            virtuoso_sha=args.virtuoso_sha,
+            estimated_db_size_gb=args.estimated_db_size_gb,
+        )
+        return 0
+    except RuntimeError as e:
+        print(f"Error: {e}", file=sys.stderr)
         return 1
 
 
 if __name__ == "__main__":  # pragma: no cover
-    sys.exit(main()) 
+    sys.exit(main())

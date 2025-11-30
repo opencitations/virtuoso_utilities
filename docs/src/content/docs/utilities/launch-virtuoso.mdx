@@ -120,3 +120,23 @@ virtuoso-launch --estimated-db-size-gb 100
 To ensure reliable operation of long-running operations, the launcher enforces these settings in `[Client]` of `virtuoso.ini`:
 - `SQL_QUERY_TIMEOUT = 0`
 - `SQL_TXN_TIMEOUT = 0`
+
+## Programmatic usage
+
+The `launch_virtuoso` function can be imported and called directly from Python code:
+
+```python
+from virtuoso_utilities.launch_virtuoso import launch_virtuoso
+
+launch_virtuoso(
+    name="my-virtuoso",
+    data_dir="./virtuoso-data",
+    memory="8g",
+    dba_password="dba",
+    detach=True,
+    wait_ready=True,
+    enable_write_permissions=True,
+)
+```
+
+The function parameters correspond to the CLI arguments described above.

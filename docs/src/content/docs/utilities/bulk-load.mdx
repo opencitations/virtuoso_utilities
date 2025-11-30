@@ -101,3 +101,22 @@ Use `virtuoso-bulk-load --help` to see all available options:
 | Argument | Description |
 |----------|-------------|
 | `--docker-container` | Name or ID of the running Virtuoso Docker container. If provided, `isql` will be run via `docker exec` |
+
+## Programmatic usage
+
+The `bulk_load` function can be imported and called directly from Python code:
+
+```python
+from virtuoso_utilities.bulk_load import bulk_load
+
+bulk_load(
+    data_directory="/path/to/nquads",
+    password="dba",
+    host="localhost",
+    port=1111,
+    recursive=True,
+    docker_container="my-virtuoso",
+)
+```
+
+The function parameters correspond to the CLI arguments described above.

@@ -24,8 +24,8 @@ from virtuoso_utilities.launch_virtuoso import (
     VIRTUOSO_MEMORY_PERCENTAGE, build_docker_run_command,
     bytes_to_docker_mem_str, calculate_max_checkpoint_remap,
     check_container_exists, check_docker_installed, get_directory_size,
-    get_docker_image, get_optimal_buffer_values, parse_memory_value,
-    remove_container, update_ini_memory_settings)
+    get_docker_image, get_optimal_buffer_values, grant_write_permissions,
+    parse_memory_value, remove_container, update_ini_memory_settings)
 
 TEST_CONTAINER_PREFIX = "virtuoso-launch-test"
 # Port range: ISQL 11120-11139, HTTP 8900-8919
@@ -648,8 +648,7 @@ class TestLaunchVirtuosoIntegration:
         """Enable write permissions after launch."""
         import time
 
-        from virtuoso_utilities.launch_virtuoso import (
-            enable_write_permissions, wait_for_virtuoso_ready)
+        from virtuoso_utilities.launch_virtuoso import wait_for_virtuoso_ready
 
         cmd, _ = build_docker_run_command(launch_args)
         cmd = self._remove_user_option(cmd)
@@ -684,7 +683,7 @@ class TestLaunchVirtuosoIntegration:
         assert ready is True
 
         # Enable write permissions
-        success = enable_write_permissions(launch_args)
+        success = grant_write_permissions(launch_args)
         assert success is True
 
     @pytest.mark.timeout(120)

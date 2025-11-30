@@ -8,15 +8,50 @@
 
 A collection of Python CLI utilities for interacting with OpenLink Virtuoso.
 
-## Installation
-
-```bash
-pipx install virtuoso-utilities
-```
-
 ## Documentation
 
 Full documentation is available at: **https://opencitations.github.io/virtuoso_utilities/**
+
+## Quick start
+
+```bash
+# Install
+pipx install virtuoso-utilities
+
+# Launch Virtuoso with Docker
+virtuoso-launch --name my-virtuoso --memory 8g --mount-volume /data/rdf:/rdf --detach --wait-ready
+
+# Bulk load RDF data
+virtuoso-bulk-load -d /rdf -k dba --docker-container my-virtuoso --recursive
+
+# Dump quadstore
+virtuoso-dump -k dba --docker-container my-virtuoso -o /dumps
+
+# Rebuild full-text index
+virtuoso-rebuild-index --password dba --docker-container my-virtuoso
+```
+
+### Programmatic usage
+
+```python
+from virtuoso_utilities.launch_virtuoso import launch_virtuoso
+from virtuoso_utilities.bulk_load import bulk_load
+
+launch_virtuoso(
+    name="my-virtuoso",
+    memory="8g",
+    extra_volumes=["/data/rdf:/rdf"],
+    detach=True,
+    wait_ready=True,
+)
+
+bulk_load(
+    data_directory="/rdf",
+    password="dba",
+    docker_container="my-virtuoso",
+    recursive=True,
+)
+```
 
 ## License
 
