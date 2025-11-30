@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.6.0...v1.6.1) (2025-11-30)
+
+
+### Bug Fixes
+
+* **release:** remove redundant build step before semantic-release ([5ddade2](https://github.com/opencitations/virtuoso_utilities/commit/5ddade2c02218071b8c4b111aa99ee47d9fff024))
+
 # [1.6.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.5.3...v1.6.0) (2025-11-30)
 
 
