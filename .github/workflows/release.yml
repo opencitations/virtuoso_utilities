@@ -46,9 +46,6 @@ jobs:
           npm install -g @semantic-release/changelog
           npm install -g @semantic-release/exec
 
-      - name: Build package
-        run: uv build
-
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
