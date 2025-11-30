@@ -1,5 +1,11 @@
 # Virtuoso Utilities
 
+[![Tests](https://github.com/opencitations/virtuoso_utilities/actions/workflows/test.yml/badge.svg)](https://github.com/opencitations/virtuoso_utilities/actions/workflows/test.yml)
+[![Coverage](https://byob.yarr.is/arcangelo7/badges/opencitations-virtuoso-utilities-coverage-master)](https://opencitations.github.io/virtuoso_utilities/)
+[![Python Versions](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/opencitations/virtuoso_utilities)
+[![Lines of Code](https://tokei.rs/b1/github/opencitations/virtuoso_utilities)](https://github.com/opencitations/virtuoso_utilities)
+[![License](https://img.shields.io/badge/license-ISC-green)](https://github.com/opencitations/virtuoso_utilities/blob/master/LICENSE)
+
 A collection of Python utilities for interacting with OpenLink Virtuoso.
 
 ## Table of Contents

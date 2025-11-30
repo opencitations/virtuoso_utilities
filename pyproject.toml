@@ -25,6 +25,7 @@ virtuoso-rebuild-index = "virtuoso_utilities.rebuild_fulltext_index:main"
 isort = "^6.0.1"
 pytest = ">=8.0,<9.0"
 pytest-timeout = "^2.4.0"
+pytest-cov = ">=4.0,<6.0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
