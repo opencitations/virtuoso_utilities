@@ -1,3 +1,16 @@
+# [1.6.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.5.3...v1.6.0) (2025-11-30)
+
+
+### Bug Fixes
+
+* **launch_virtuoso:** fix launch_virtuoso.py to remove deprecated capture parameter ([c77b4fe](https://github.com/opencitations/virtuoso_utilities/commit/c77b4fea4ad3f7cce5d5b22d7aaef66591cb4b70))
+* **release:** update semantic-release config for uv ([20edc20](https://github.com/opencitations/virtuoso_utilities/commit/20edc2031c2123d8d1d0a6123bdca3ac274a8be9))
+
+
+### Features
+
+* **launch_virtuoso:** add programmatic API for launch_virtuoso function ([eff8acf](https://github.com/opencitations/virtuoso_utilities/commit/eff8acf16c85f9cfcb42909583e3b028591492c3))
+
 ## [1.5.3](https://github.com/opencitations/virtuoso_utilities/compare/v1.5.2...v1.5.3) (2025-11-26)
 
 
