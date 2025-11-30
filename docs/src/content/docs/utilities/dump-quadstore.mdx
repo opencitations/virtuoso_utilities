@@ -1,0 +1,117 @@
+---
+title: Quadstore dump
+description: Export Virtuoso quadstore content to N-Quads format
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This script provides a solution to export the entire content of a Virtuoso quadstore using the official Virtuoso `dump_nquads` stored procedure. This procedure is specifically designed for N-Quads export and is documented in the [official OpenLink Virtuoso VOS documentation](https://vos.openlinksw.com/owiki/wiki/VOS/VirtRDFDumpNQuad).
+
+## Key features
+
+- **Official Virtuoso procedure:** Uses the optimized `dump_nquads` stored procedure specifically designed for N-Quads export with Named Graph information preservation
+- **N-Quads format:** Outputs data in N-Quads format, which preserves Named Graph IRI information and provides significant value for data partitioning applications
+- **Automatic procedure installation:** The script automatically installs the required `dump_nquads` stored procedure in Virtuoso before performing the dump
+- **Automatic graph filtering:** The procedure automatically excludes internal `virtrdf:` graphs while including all user data graphs
+- **Automatic compression:** Output files are automatically compressed as `.nq.gz` files for space efficiency (can be disabled)
+- **Configurable file size limits:** Control the maximum size of individual dump files to prevent excessively large files
+- **Sequential file numbering:** Files are numbered sequentially (`output000001.nq.gz`, `output000002.nq.gz`, etc.)
+- **Docker integration:** Full support for Docker-based Virtuoso instances
+
+## Important prerequisites
+
+<Aside type="caution" title="DirsAllowed configuration">
+The output directory **must** be accessible by the Virtuoso server process and listed in the `DirsAllowed` parameter within the Virtuoso INI file.
+</Aside>
+
+- **File permissions:** When using Docker, ensure the output directory is properly mounted and accessible inside the container
+
+## Basic usage (local Virtuoso)
+
+```bash
+# With pipx (global installation)
+virtuoso-dump \
+    --password <your_virtuoso_password> \
+    --output-dir ./virtuoso_dump
+
+# With uv (development)
+uv run python virtuoso_utilities/dump_quadstore.py \
+    --password <your_virtuoso_password> \
+    --output-dir ./virtuoso_dump
+```
+
+## Export with custom file size limits (50MB per file)
+
+```bash
+virtuoso-dump \
+    --password <your_virtuoso_password> \
+    --output-dir ./virtuoso_dump \
+    --file-length-limit 50000000
+```
+
+## Export uncompressed files
+
+```bash
+virtuoso-dump \
+    --password <your_virtuoso_password> \
+    --output-dir ./virtuoso_dump \
+    --no-compression
+```
+
+## Usage with Docker
+
+```bash
+# Example: First launch Virtuoso
+virtuoso-launch \
+    --name my-virtuoso-dump \
+    --isql-port 1112 \
+    --data-dir ./virtuoso-data \
+    --mount-volume ./dump_output:/dumps
+
+# Then dump the quadstore
+virtuoso-dump \
+    --password <your_virtuoso_password> \
+    --port 1112 \
+    --docker-container my-virtuoso-dump \
+    --output-dir /dumps
+```
+
+## Arguments
+
+Use `virtuoso-dump --help` to see all available options:
+
+### Connection parameters
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `-H`, `--host` | Virtuoso server host | `localhost` |
+| `-P`, `--port` | Virtuoso server ISQL port. Use the *host* port if mapped via Docker | `1111` |
+| `-u`, `--user` | Virtuoso username | `dba` |
+| `-k`, `--password` | **Required.** Virtuoso password | `dba` |
+
+### Output parameters
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `-o`, `--output-dir` | Output directory for N-Quads files | `./virtuoso_dump` |
+| `--file-length-limit` | Maximum length of dump files in bytes | `100000000` (100MB) |
+| `--no-compression` | Disable gzip compression (files will be `.nq` instead of `.nq.gz`) | `false` |
+
+<Aside type="note" title="Output directory behavior">
+- **With Docker:** The directory must be an already existing directory mounted inside the container, accessible by Virtuoso and present in DirsAllowed. The script does not create it on the host.
+- **Without Docker:** The directory will be created automatically if it does not exist.
+</Aside>
+
+### Docker parameters
+
+| Argument | Description |
+|----------|-------------|
+| `--docker-container` | Name or ID of the running Virtuoso Docker container |
+
+## Output format
+
+The script outputs data in **N-Quads (.nq)** format, which is the native format used by Virtuoso's `dump_nquads` procedure. Files are automatically compressed to `.nq.gz` format unless `--no-compression` is specified.
+
+Naming pattern:
+- `output000001.nq.gz`, `output000002.nq.gz`, etc. for compressed files
+- `output000001.nq`, `output000002.nq`, etc. for uncompressed files

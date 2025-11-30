@@ -288,7 +288,7 @@ def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buff
         print(f"Error: An unexpected error occurred while updating virtuoso.ini: {e}", file=sys.stderr)
 
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments() -> argparse.Namespace:  # pragma: no cover
     """
     Parse command-line arguments for Virtuoso Docker launcher.
     
@@ -779,7 +779,7 @@ def enable_write_permissions(args: argparse.Namespace) -> bool:
     return success1 and success2
 
 
-def main() -> int:
+def main() -> int:  # pragma: no cover
     """
     Main function to launch Virtuoso with Docker.
     """

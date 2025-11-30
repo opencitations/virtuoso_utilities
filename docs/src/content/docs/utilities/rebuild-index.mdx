@@ -1,0 +1,73 @@
+---
+title: Full-text index rebuilder
+description: Rebuild Virtuoso full-text index for optimal SPARQL querying
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This script provides a utility to rebuild the Virtuoso full-text index, which is essential for optimal querying of RDF object values using the `bif:contains` function in SPARQL queries. The implementation is based on the official [OpenLink Software documentation](https://community.openlinksw.com/t/how-to-rebuild-virtuoso-full-text-index/2697).
+
+## Why rebuild the full-text index?
+
+In some cases, the Full-Text index may need to be recreated if unexpected results are returned when using the `bif:contains` Full-Text index search function in SPARQL queries. The Virtuoso RDF Quad store supports optional Full-Text indexing of RDF object values, providing much better performance compared to the SPARQL `regex` feature, which is very inefficient in most cases.
+
+<Aside type="danger" title="Backup required">
+Always ensure you have a full backup of your database before running this script, as it involves dropping and recreating database tables.
+</Aside>
+
+## What the script does
+
+1. Drops the existing full-text index tables
+2. Recreates the index structure
+3. Refills the index with data
+
+<Aside type="caution" title="Restart required">
+After this process completes, the Virtuoso database **MUST** be restarted for the index rebuild to take effect.
+</Aside>
+
+## Basic usage
+
+```bash
+# With pipx (global installation)
+virtuoso-rebuild-index --password <your_virtuoso_password>
+
+# With uv (development)
+uv run python virtuoso_utilities/rebuild_fulltext_index.py --password <your_virtuoso_password>
+```
+
+## Usage with Docker
+
+```bash
+# With pipx (global installation)
+virtuoso-rebuild-index \
+    --password <your_virtuoso_password> \
+    --docker-container my-virtuoso
+
+# With uv (development)
+uv run python virtuoso_utilities/rebuild_fulltext_index.py \
+    --password <your_virtuoso_password> \
+    --docker-container my-virtuoso
+```
+
+## Arguments
+
+Use `virtuoso-rebuild-index --help` to see all available options:
+
+### Connection parameters
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `--host` | Virtuoso host | `localhost` |
+| `--port` | Virtuoso ISQL port | `1111` |
+| `--user` | Virtuoso username | `dba` |
+| `--password` | Virtuoso password | `dba` |
+
+### Docker parameters
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `--docker-container` | Name or ID of the running Virtuoso Docker container. If specified, `isql` commands are run via `docker exec` | - |
+| `--restart-container` | Restart Docker container after rebuilding the index. Only applicable when using `--docker-container` | `false` |
+| `--docker-path` | Path to docker executable | `docker` |
+| `--docker-isql-path` | Path to isql inside container | `isql` |
+| `--isql-path` | Path to isql executable on host | `isql` |

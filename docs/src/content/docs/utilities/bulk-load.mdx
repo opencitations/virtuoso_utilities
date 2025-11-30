@@ -1,0 +1,103 @@
+---
+title: Bulk loader
+description: Sequential bulk loading of N-Quads files into Virtuoso
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This script offers a sequential method to load N-Quads Gzipped files (`*.nq.gz`) into a Virtuoso instance using the standard Virtuoso bulk loading procedure (`ld_dir`/`ld_dir_all` followed by `rdf_loader_run`).
+
+## Performance note: why only `.nq.gz`?
+
+This script *only* processes files ending in `.nq.gz`. This restriction is intentional and provides significant performance advantages:
+
+- **Avoiding artificial throttling:** By reading compressed data, the load on Virtuoso's internal processing is more balanced. Loading many uncompressed files can sometimes overwhelm Virtuoso's internal mechanisms, causing it to introduce artificial delays to manage the workload.
+
+Therefore, for optimal bulk loading performance with Virtuoso's `ld_dir`/`rdf_loader_run` mechanism, using `.nq.gz` files is strongly recommended.
+
+## How it works
+
+1. It first registers files found in the specified directory using the `ld_dir` (or `ld_dir_all` for recursive loading) ISQL function, adding them to the `DB.DBA.load_list` queue
+2. Then, it executes the `rdf_loader_run()` ISQL function once to process this queue sequentially
+3. Progress and errors can be monitored by querying `DB.DBA.load_list`
+
+## Important prerequisites
+
+<Aside type="caution" title="Server access and DirsAllowed configuration">
+The directory specified by `-d` (`--data-directory`) **must** be accessible by the Virtuoso server process itself. This path **must** be listed in the `DirsAllowed` parameter within the Virtuoso INI file (or configured via environment variables if using the `launch_virtuoso.py` script).
+</Aside>
+
+- **When using Docker (`--docker-container`)**: `-d` specifies the **absolute path *inside* the container** (e.g., `/rdf_mount_in_container`). Ensure this path corresponds to a mounted volume and is included in the container's `DirsAllowed` configuration. Using `virtuoso-launch` with `--mount-volume` handles this automatically.
+- **When *not* using Docker**: `-d` specifies the **path on the host system** accessible by the Virtuoso process. Ensure this host path is listed in the server's `virtuoso.ini` `DirsAllowed`.
+
+## Basic usage (host Virtuoso)
+
+```bash
+# With pipx (global installation)
+virtuoso-bulk-load \
+    -d /path/accessible/by/virtuoso/server \
+    -k <your_virtuoso_password>
+
+# With uv (development)
+uv run python virtuoso_utilities/bulk_load.py \
+    -d /path/accessible/by/virtuoso/server \
+    -k <your_virtuoso_password>
+```
+
+## Customized usage (host Virtuoso)
+
+```bash
+virtuoso-bulk-load \
+    -d /path/accessible/by/virtuoso/server \
+    -k <your_virtuoso_password> \
+    --host <virtuoso_host> \
+    --port <virtuoso_port> \
+    --user <virtuoso_user> \
+    --recursive
+```
+
+## Usage with Docker
+
+```bash
+# Example: Launch Virtuoso first
+virtuoso-launch \
+    --name my-virtuoso-loader \
+    --isql-port 1112 \
+    --data-dir ./virtuoso-loader-data \
+    --mount-volume /home/user/my_rdf_data:/rdf_mount_in_container
+
+# Then run the bulk loader
+virtuoso-bulk-load \
+    -d /rdf_mount_in_container \
+    -k <your_virtuoso_password> \
+    --port 1112 \
+    --docker-container my-virtuoso-loader \
+    --recursive
+```
+
+## Arguments
+
+Use `virtuoso-bulk-load --help` to see all available options:
+
+### Required arguments
+
+| Argument | Description |
+|----------|-------------|
+| `-d`, `--data-directory` | Path where the script will search for `.nq.gz` files. See prerequisites for path requirements |
+| `-k`, `--password` | Virtuoso `dba` user password |
+
+### Optional arguments
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `-H`, `--host` | Virtuoso server host | `localhost` |
+| `-P`, `--port` | Virtuoso server ISQL port. Use the *host* port if mapped via Docker | `1111` |
+| `-u`, `--user` | Virtuoso username | `dba` |
+| `--recursive` | Search for `.nq.gz` files recursively (uses `ld_dir_all` instead of `ld_dir`) | `false` |
+| `--log-level` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | `ERROR` |
+
+### Docker options
+
+| Argument | Description |
+|----------|-------------|
+| `--docker-container` | Name or ID of the running Virtuoso Docker container. If provided, `isql` will be run via `docker exec` |

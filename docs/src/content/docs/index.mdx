@@ -1,0 +1,70 @@
+---
+title: Virtuoso Utilities
+description: A collection of Python utilities for interacting with OpenLink Virtuoso
+template: splash
+hero:
+  tagline: Python CLI tools for managing OpenLink Virtuoso databases
+  actions:
+    - text: Get started
+      link: /virtuoso_utilities/installation/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/opencitations/virtuoso_utilities
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Features
+
+<CardGrid stagger>
+  <Card title="Sequential bulk loading" icon="document">
+    Load N-Quads Gzipped files (`*.nq.gz`) into Virtuoso using the official `ld_dir`/`ld_dir_all` and `rdf_loader_run` methods.
+  </Card>
+  <Card title="Quadstore export" icon="seti:json">
+    Export the entire content of a Virtuoso quadstore using the official `dump_nquads` stored procedure in N-Quads format.
+  </Card>
+  <Card title="Docker support" icon="seti:docker">
+    Seamlessly integrates with Virtuoso running in a Docker container by executing `isql` commands via `docker exec`.
+  </Card>
+  <Card title="Docker launcher" icon="rocket">
+    Launch a Virtuoso database using Docker with automatic memory tuning, volume mounts, and `DirsAllowed` configuration.
+  </Card>
+  <Card title="Full-text index rebuilder" icon="magnifier">
+    Rebuild the Virtuoso full-text index for optimal querying using the `bif:contains` function in SPARQL queries.
+  </Card>
+  <Card title="Flexible configuration" icon="setting">
+    Customize Virtuoso connection details, file patterns, and paths to `isql` and `docker` executables.
+  </Card>
+</CardGrid>
+
+## CLI commands
+
+After installation, you have access to the following commands:
+
+| Command | Description |
+|---------|-------------|
+| `virtuoso-launch` | Launch Virtuoso with Docker |
+| `virtuoso-bulk-load` | Bulk load RDF data |
+| `virtuoso-dump` | Export quadstore |
+| `virtuoso-rebuild-index` | Rebuild full-text index |
+
+## Quick example
+
+```bash
+# Launch Virtuoso with Docker
+virtuoso-launch \
+    --name my-virtuoso \
+    --memory 16g \
+    --mount-volume /data/rdf:/rdf \
+    --detach \
+    --wait-ready
+
+# Bulk load RDF data
+virtuoso-bulk-load \
+    -d /rdf \
+    -k mypassword \
+    --docker-container my-virtuoso \
+    --recursive
+```

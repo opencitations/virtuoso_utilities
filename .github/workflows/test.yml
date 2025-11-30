@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 env:
   COVERAGE_REPORT_PATH: htmlcov
@@ -89,33 +87,3 @@ jobs:
         run: |
           echo "## Test Results for Python ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
           echo "Tests completed." >> $GITHUB_STEP_SUMMARY
-
-  deploy-pages:
-    needs: test
-    if: always() && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Download coverage artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage
-        continue-on-error: true
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: coverage
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

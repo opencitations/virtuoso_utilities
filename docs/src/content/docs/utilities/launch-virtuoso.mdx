@@ -1,0 +1,122 @@
+---
+title: Docker launcher
+description: Launch Virtuoso database using Docker with automatic memory tuning
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `virtuoso-launch` command provides a convenient way to launch a Virtuoso database using Docker with various configurable parameters.
+
+## Basic usage
+
+```bash
+# With pipx (global installation)
+virtuoso-launch
+
+# With uv (development)
+uv run python virtuoso_utilities/launch_virtuoso.py
+```
+
+This launches a Virtuoso container with default settings.
+
+## Customized usage
+
+```bash
+virtuoso-launch \
+    --name my-virtuoso \
+    --http-port 8891 \
+    --isql-port 1112 \
+    --data-dir ./my-virtuoso-data \
+    --dba-password mySafePassword \
+    --mount-volume /path/on/host/with/rdf:/rdf-data-in-container \
+    --network my-docker-network \
+    --memory 16g \
+    --detach \
+    --wait-ready \
+    --enable-write-permissions
+```
+
+## Arguments
+
+Use `virtuoso-launch --help` to see all available options:
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `--name` | Name for the Docker container | `virtuoso` |
+| `--http-port` | HTTP port to expose Virtuoso on | `8890` |
+| `--isql-port` | ISQL port to expose Virtuoso on | `1111` |
+| `--data-dir` | Host directory to mount as Virtuoso data directory | `./virtuoso-data` |
+| `--mount-volume` | Mount additional host directory (format: `HOST:CONTAINER`). Can be specified multiple times | - |
+| `--memory` | Memory limit for the container (e.g., `2g`, `4g`) | ~2/3 of host RAM |
+| `--cpu-limit` | CPU limit for the container (0 = no limit) | `0` |
+| `--dba-password` | Password for the Virtuoso dba user | `dba` |
+| `--max-dirty-buffers` | Maximum dirty buffers before checkpoint | Auto-calculated |
+| `--number-of-buffers` | Number of buffers | Auto-calculated |
+| `--estimated-db-size-gb` | Estimated database size in GB for preconfiguring `MaxCheckpointRemap` | - |
+| `--network` | Docker network to connect the container to | - |
+| `--wait-ready` | Wait until Virtuoso is ready to accept connections | `false` |
+| `--enable-write-permissions` | Enable write permissions for 'nobody' and 'SPARQL' users | `false` |
+| `--detach` | Run container in detached mode | `false` |
+| `--force-remove` | Force removal of existing container with the same name | `false` |
+| `--virtuoso-version` | Virtuoso Docker image version/tag | `latest` |
+| `--virtuoso-sha` | Virtuoso Docker image SHA256 digest (takes precedence over version) | - |
+
+## Memory-based configuration
+
+<Aside type="caution" title="Docker resource limits">
+By default, Docker Desktop runs with limited resources. Before allocating significant memory using the `--memory` flag, ensure Docker is configured to have access to at least that amount of RAM. If the Virtuoso container requests more memory than Docker can provide, it may fail to start or crash (often with exit code 137).
+</Aside>
+
+The script simplifies memory configuration based on Virtuoso best practices:
+
+### Container memory limit
+
+The script automatically detects your host's total RAM and sets the default `--memory` to approximately 2/3 of that total. This follows the Virtuoso guideline of allocating a significant portion of system RAM to the database process.
+
+### Docker memory reservation
+
+To prevent out-of-memory (OOM) crashes, the script sets Docker's `--memory-reservation` to 85% of the `--memory` limit, providing a 15% safety margin.
+
+### Virtuoso internal buffers
+
+The script calculates optimal values for `NumberOfBuffers` and `MaxDirtyBuffers` based on 85% of the container memory limit using the formula from the [OpenLink Virtuoso Performance Tuning documentation](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692):
+
+```
+EffectiveMemory = ContainerMemoryLimit * 0.85
+NumberOfBuffers = (EffectiveMemory * 0.66) / 8000
+MaxDirtyBuffers = NumberOfBuffers * 0.75
+```
+
+**Example with `--memory 10g`:**
+- Docker hard limit: 10g (100%)
+- Docker soft limit (reservation): 8.5g (85%)
+- Virtuoso buffer calculations: based on 8.5g
+- Available headroom: 1.5g (15%) for process overhead
+
+### Allowed directories
+
+The script automatically constructs the `VIRT_Parameters_DirsAllowed` environment variable, including the container data directory and any paths specified via `--mount-volume`.
+
+## Automatic MaxCheckpointRemap configuration
+
+For large databases (> 1 GiB), Virtuoso recommends tuning the `MaxCheckpointRemap` parameter. This script offers two methods:
+
+### For existing databases (default)
+
+1. The script checks for an existing `virtuoso.ini` file in `--data-dir`
+2. If the total size exceeds 1 GiB, it calculates the recommended value (1/4th of total size in 8K pages)
+3. It modifies `MaxCheckpointRemap` in both `[Database]` and `[TempDatabase]` sections
+
+### For new deployments
+
+Use `--estimated-db-size-gb` to preconfigure `MaxCheckpointRemap` via environment variables:
+
+```bash
+virtuoso-launch --estimated-db-size-gb 100
+```
+
+## Client SQL timeouts
+
+To ensure reliable operation of long-running operations, the launcher enforces these settings in `[Client]` of `virtuoso.ini`:
+- `SQL_QUERY_TIMEOUT = 0`
+- `SQL_TXN_TIMEOUT = 0`

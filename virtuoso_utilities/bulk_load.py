@@ -184,7 +184,7 @@ def bulk_load(
         raise RuntimeError(f"Failed to run final checkpoint.\nError details: {stderr_final}")
 
 
-def main():
+def main():  # pragma: no cover
     """
     CLI entry point that parses arguments and calls bulk_load().
     """
@@ -247,5 +247,5 @@ IMPORTANT:
         sys.exit(1)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

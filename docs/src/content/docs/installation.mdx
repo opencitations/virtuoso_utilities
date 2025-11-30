@@ -1,0 +1,73 @@
+---
+title: Installation
+description: How to install Virtuoso Utilities
+---
+
+This package can be installed in two ways: globally using `pipx` for easy command-line access, or locally using uv for development.
+
+## Global installation with pipx (recommended)
+
+[pipx](https://pypa.github.io/pipx/) is the recommended way to install Python CLI applications globally. It creates isolated environments for each package, avoiding dependency conflicts.
+
+### Install pipx
+
+```bash
+# On Ubuntu/Debian
+sudo apt install pipx
+
+# On macOS
+brew install pipx
+
+# Or using pip
+pip install --user pipx
+pipx ensurepath
+```
+
+### Install virtuoso-utilities
+
+```bash
+pipx install virtuoso-utilities
+```
+
+### Verify installation
+
+```bash
+# Launch Virtuoso with Docker
+virtuoso-launch --help
+
+# Bulk load data
+virtuoso-bulk-load --help
+
+# Dump quadstore
+virtuoso-dump --help
+
+# Rebuild full-text index
+virtuoso-rebuild-index --help
+```
+
+## Local development with uv
+
+For development or if you prefer to use [uv](https://github.com/astral-sh/uv):
+
+### Clone the repository
+
+```bash
+git clone https://github.com/opencitations/virtuoso_utilities.git
+cd virtuoso_utilities
+```
+
+### Install dependencies
+
+```bash
+uv sync --group dev
+```
+
+### Run scripts
+
+```bash
+uv run python virtuoso_utilities/launch_virtuoso.py --help
+```
+
+## Python version support
+
+Virtuoso Utilities supports Python 3.9, 3.10, 3.11, 3.12, and 3.13.
