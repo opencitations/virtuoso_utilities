@@ -55,4 +55,4 @@ jobs:
         if: success()
         env:
           PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-        run: uv publish --token $PYPI_API_TOKEN
+        run: uv publish --token $PYPI_API_TOKEN 
