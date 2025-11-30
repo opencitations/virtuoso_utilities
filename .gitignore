@@ -15,3 +15,4 @@ htmlcov/
 tests/test_virtuoso_db/
 tests/test_data/*.nq.gz
 tests/test_data/subdir/
+tests/temp_launch_virtuoso/

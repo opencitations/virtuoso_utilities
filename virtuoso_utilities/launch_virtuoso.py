@@ -7,13 +7,13 @@ Configuration parameters can be customized through command-line arguments.
 """
 
 import argparse
+import configparser
 import os
 import re
 import subprocess
 import sys
 import time
 from typing import List, Tuple
-import configparser
 
 import psutil
 
@@ -683,8 +683,7 @@ def wait_for_virtuoso_ready(
         try:
             success, stdout, stderr = run_isql_command(
                 isql_helper_args,
-                sql_command="status();",
-                capture=True
+                sql_command="status();"
             )
 
             if success:
@@ -763,7 +762,7 @@ def enable_write_permissions(args: argparse.Namespace) -> bool:
 
     cmd1 = "DB.DBA.RDF_DEFAULT_USER_PERMS_SET('nobody', 7);"
     print(f"Executing: {cmd1}")
-    success1, _, stderr1 = run_isql_command(isql_helper_args, sql_command=cmd1, capture=True)
+    success1, _, stderr1 = run_isql_command(isql_helper_args, sql_command=cmd1)
     if success1:
         print("  Successfully set permissions for 'nobody' user.")
     else:
@@ -771,7 +770,7 @@ def enable_write_permissions(args: argparse.Namespace) -> bool:
 
     cmd2 = "DB.DBA.USER_GRANT_ROLE('SPARQL', 'SPARQL_UPDATE');"
     print(f"Executing: {cmd2}")
-    success2, _, stderr2 = run_isql_command(isql_helper_args, sql_command=cmd2, capture=True)
+    success2, _, stderr2 = run_isql_command(isql_helper_args, sql_command=cmd2)
     if success2:
         print("  Successfully granted SPARQL_UPDATE role to 'SPARQL' user.")
     else:
@@ -895,5 +894,5 @@ Virtuoso launched successfully!
         return 1
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     sys.exit(main()) 
