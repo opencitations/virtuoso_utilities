@@ -148,6 +148,7 @@ class TestSetVirtEnvVars:
             "memory": "8g",
             "parallel_threads": None,
             "number_of_buffers": 500000,
+            "max_dirty_buffers": 375000,
             "estimated_db_size_gb": 0,
         }
         set_virt_env_vars(config)
@@ -170,6 +171,7 @@ class TestSetVirtEnvVars:
             "memory": "8g",
             "parallel_threads": 4,
             "number_of_buffers": 500000,
+            "max_dirty_buffers": 375000,
             "estimated_db_size_gb": 0,
         }
         set_virt_env_vars(config)
@@ -189,6 +191,7 @@ class TestSetVirtEnvVars:
             "memory": "8g",
             "parallel_threads": 4,
             "number_of_buffers": 500000,
+            "max_dirty_buffers": 375000,
             "estimated_db_size_gb": 0,
         }
         set_virt_env_vars(config)
@@ -206,6 +209,7 @@ class TestSetVirtEnvVars:
             "memory": "8g",
             "parallel_threads": 4,
             "number_of_buffers": 500000,
+            "max_dirty_buffers": 375000,
             "estimated_db_size_gb": 0,
         }
         set_virt_env_vars(config)
@@ -223,6 +227,7 @@ class TestSetVirtEnvVars:
             "memory": "8g",
             "parallel_threads": 4,
             "number_of_buffers": 500000,
+            "max_dirty_buffers": 375000,
             "estimated_db_size_gb": 50,
         }
         set_virt_env_vars(config)
@@ -242,6 +247,7 @@ class TestSetVirtEnvVars:
             "memory": "8g",
             "parallel_threads": 4,
             "number_of_buffers": 500000,
+            "max_dirty_buffers": 375000,
             "estimated_db_size_gb": 0.5,
         }
         set_virt_env_vars(config)
@@ -259,6 +265,7 @@ class TestSetVirtEnvVars:
             "memory": "8g",
             "parallel_threads": 4,
             "number_of_buffers": 100000,
+            "max_dirty_buffers": 75000,
             "estimated_db_size_gb": 0,
         }
         set_virt_env_vars(config)
