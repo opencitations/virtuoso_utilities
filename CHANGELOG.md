@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.6.1...v1.7.0) (2025-12-05)
+
+
+### Features
+
+* **launch_virtuoso:** add query parallelization and memory optimization ([10c0803](https://github.com/opencitations/virtuoso_utilities/commit/10c0803f8eab2a6ebbd22c4c02652d57f0a302a7))
+
 ## [1.6.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.6.0...v1.6.1) (2025-11-30)
 
 
