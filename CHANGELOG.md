@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.7.0...v1.8.0) (2025-12-05)
+
+
+### Features
+
+* **native_entrypoint:** add docker-compose compatible entrypoint ([6b89c69](https://github.com/opencitations/virtuoso_utilities/commit/6b89c69485eb5f7513213f40740bc3fd03618782))
+
 # [1.7.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.6.1...v1.7.0) (2025-12-05)
 
 
