@@ -802,10 +802,8 @@ class TestLaunchVirtuosoIntegration:
             pytest.fail(f"Container stopped unexpectedly. Logs:\n{logs.stdout}\n{logs.stderr}")
 
         ready = wait_for_virtuoso_ready(
-            unique_container_name,
-            "localhost",
-            launch_args.isql_port,
-            launch_args.dba_password,
+            dba_password=launch_args.dba_password,
+            docker_container=unique_container_name,
             timeout=120,
         )
         assert ready is True
@@ -859,16 +857,17 @@ class TestLaunchVirtuosoIntegration:
             pytest.fail(f"Container stopped unexpectedly. Logs:\n{logs.stdout}\n{logs.stderr}")
 
         ready = wait_for_virtuoso_ready(
-            unique_container_name,
-            "localhost",
-            launch_args.isql_port,
-            launch_args.dba_password,
+            dba_password=launch_args.dba_password,
+            docker_container=unique_container_name,
             timeout=120,
         )
         assert ready is True
 
         # Enable write permissions
-        success = grant_write_permissions(launch_args)
+        success = grant_write_permissions(
+            dba_password=launch_args.dba_password,
+            docker_container=unique_container_name,
+        )
         assert success is True
 
     @pytest.mark.timeout(120)
@@ -958,10 +957,8 @@ class TestErrorCases:
             stdout=subprocess.DEVNULL,
         )
         result = wait_for_virtuoso_ready(
-            unique_container_name,
-            "localhost",
-            11199,
-            "dba",
+            dba_password="dba",
+            docker_container=unique_container_name,
             timeout=5,
         )
         assert result is False

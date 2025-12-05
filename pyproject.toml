@@ -15,6 +15,7 @@ dependencies = [
 
 [project.scripts]
 virtuoso-launch = "virtuoso_utilities.launch_virtuoso:main"
+virtuoso-native-launch = "virtuoso_utilities.native_entrypoint:main"
 virtuoso-bulk-load = "virtuoso_utilities.bulk_load:main"
 virtuoso-dump = "virtuoso_utilities.dump_quadstore:main"
 virtuoso-rebuild-index = "virtuoso_utilities.rebuild_fulltext_index:main"

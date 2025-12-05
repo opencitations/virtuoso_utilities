@@ -1,0 +1,5 @@
+FROM openlink/virtuoso-opensource-7:latest
+
+RUN pip install virtuoso-utilities
+
+ENTRYPOINT ["virtuoso-native-launch"]

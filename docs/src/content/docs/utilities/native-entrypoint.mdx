@@ -1,0 +1,120 @@
+---
+title: Native entrypoint
+description: Run Virtuoso inside Docker with automatic configuration via environment variables
+---
+
+import { Aside, Code } from '@astrojs/starlight/components';
+
+The `virtuoso-native-launch` command is a wrapper entrypoint that configures Virtuoso from environment variables, then delegates to the original Docker image entrypoint. This enables using optimized Virtuoso configuration in docker-compose scenarios.
+
+## Use case
+
+The standard `virtuoso-launch` command orchestrates Docker from outside the container. However, if you want to use Virtuoso in a docker-compose setup where the configuration is defined in environment variables, you need `virtuoso-native-launch`.
+
+## Quick start
+
+Example files are available in the repository root:
+- [`Dockerfile.virtuoso`](https://github.com/opencitations/virtuoso_utilities/blob/master/Dockerfile.virtuoso)
+- [`docker-compose.example.yml`](https://github.com/opencitations/virtuoso_utilities/blob/master/docker-compose.example.yml)
+
+To run:
+```bash
+docker compose -f docker-compose.example.yml up
+```
+
+## Basic usage
+
+### Create a Dockerfile
+
+```dockerfile
+FROM openlink/virtuoso-opensource-7:latest
+
+RUN pip install virtuoso-utilities
+
+ENTRYPOINT ["virtuoso-native-launch"]
+```
+
+### Use with docker-compose
+
+```yaml
+services:
+  virtuoso:
+    build:
+      context: .
+      dockerfile: Dockerfile.virtuoso
+    environment:
+      - VIRTUOSO_MEMORY=8g
+      - DBA_PASSWORD=mysecret
+      - VIRTUOSO_ESTIMATED_DB_SIZE_GB=50
+      - VIRTUOSO_ENABLE_WRITE_PERMISSIONS=true
+      - VIRTUOSO_EXTRA_DIRS_ALLOWED=/data,/imports
+    volumes:
+      - ./data:/opt/virtuoso-opensource/database
+      - ./imports:/imports
+    ports:
+      - "8890:8890"
+      - "1111:1111"
+```
+
+## Environment variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VIRTUOSO_MEMORY` | Memory limit (e.g., `8g`, `4096m`) | ~2/3 of container RAM |
+| `VIRTUOSO_DBA_PASSWORD` | DBA password (also accepts `DBA_PASSWORD`) | `dba` |
+| `VIRTUOSO_ESTIMATED_DB_SIZE_GB` | Pre-configure MaxCheckpointRemap for new DBs (auto-calculated from existing DB) | - |
+| `VIRTUOSO_PARALLEL_THREADS` | CPU cores for query parallelization | Auto-detected |
+| `VIRTUOSO_ENABLE_WRITE_PERMISSIONS` | Enable SPARQL write (`true`, `1`, `yes`) | `false` |
+| `VIRTUOSO_NUMBER_OF_BUFFERS` | Override automatic buffer calculation | Auto-calculated |
+| `VIRTUOSO_MAX_DIRTY_BUFFERS` | Override automatic dirty buffer calculation | Auto-calculated |
+| `VIRTUOSO_DATA_DIR` | Virtuoso data directory | `/opt/virtuoso-opensource/database` |
+| `VIRTUOSO_EXTRA_DIRS_ALLOWED` | Additional DirsAllowed paths (comma-separated) | - |
+| `VIRTUOSO_ORIGINAL_ENTRYPOINT` | Original entrypoint to exec | `/virtuoso-entrypoint.sh` |
+
+## How it works
+
+1. Reads configuration from environment variables
+2. Calculates optimal buffer and threading settings (same formulas as `virtuoso-launch`)
+3. Updates `virtuoso.ini` with calculated settings
+4. Sets `VIRT_*` environment variables for threading configuration
+5. If write permissions are enabled, forks a background process to apply them after startup
+6. Executes the original Docker image entrypoint via `os.execv()`
+
+## Memory and buffer configuration
+
+The same memory-based configuration logic from `virtuoso-launch` applies:
+
+- Buffer calculation: `NumberOfBuffers = (Memory * 0.85 * 0.66) / 8700`
+- Dirty buffers: `MaxDirtyBuffers = NumberOfBuffers * 0.75`
+- MaxQueryMem: Remaining memory after buffers (80% margin)
+
+## Threading configuration
+
+Threading parameters are set as `VIRT_*` environment variables:
+
+- `AsyncQueueMaxThreads = CPU_cores * 1.5`
+- `ThreadsPerQuery = CPU_cores`
+- `MaxClientConnections = CPU_cores * 2`
+- `HTTPServer_ServerThreads = CPU_cores * 2`
+
+## Write permissions
+
+<Aside type="note">
+When `VIRTUOSO_ENABLE_WRITE_PERMISSIONS=true`, the entrypoint forks a background process that waits for Virtuoso to become ready and then grants write permissions. This allows the container to start normally while permissions are applied asynchronously.
+</Aside>
+
+The following SQL commands are executed:
+
+```sql
+DB.DBA.RDF_DEFAULT_USER_PERMS_SET('nobody', 7);
+DB.DBA.USER_GRANT_ROLE('SPARQL', 'SPARQL_UPDATE');
+```
+
+## Comparison with virtuoso-launch
+
+| Feature | virtuoso-launch | virtuoso-native-launch |
+|---------|-----------------|------------------------|
+| Runs from | Host (outside container) | Inside container |
+| Configuration | CLI arguments | Environment variables |
+| Docker dependency | Yes (creates container) | No (is the entrypoint) |
+| Use case | Standalone scripts | docker-compose |

@@ -25,6 +25,7 @@ export default defineConfig({
 					label: 'Utilities',
 					items: [
 						{ label: 'Docker launcher', slug: 'utilities/launch-virtuoso' },
+						{ label: 'Native entrypoint', slug: 'utilities/native-entrypoint' },
 						{ label: 'Bulk loader', slug: 'utilities/bulk-load' },
 						{ label: 'Quadstore dump', slug: 'utilities/dump-quadstore' },
 						{ label: 'Full-text index rebuilder', slug: 'utilities/rebuild-index' },

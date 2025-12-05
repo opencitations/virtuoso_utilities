@@ -1,0 +1,14 @@
+services:
+  virtuoso:
+    build:
+      context: .
+      dockerfile: Dockerfile.virtuoso
+    environment:
+      - VIRTUOSO_MEMORY=8g
+      - DBA_PASSWORD=dba
+      - VIRTUOSO_ENABLE_WRITE_PERMISSIONS=true
+    volumes:
+      - ./virtuoso-data:/opt/virtuoso-opensource/database
+    ports:
+      - "8890:8890"
+      - "1111:1111"

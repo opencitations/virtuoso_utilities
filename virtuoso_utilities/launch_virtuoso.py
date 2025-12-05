@@ -35,6 +35,19 @@ from virtuoso_utilities.isql_helpers import run_isql_command
 MIN_DB_SIZE_FOR_CHECKPOINT_REMAP_GB = 1
 MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP = MIN_DB_SIZE_FOR_CHECKPOINT_REMAP_GB * 1024**3
 
+# Default directories allowed in Virtuoso
+DEFAULT_DIRS_ALLOWED = {".", "../vad", "/usr/share/proj", "../virtuoso_input"}
+
+# Connection error patterns for retry logic
+CONNECTION_ERROR_PATTERNS = [
+    "connection refused",
+    "connect failed",
+    "connection failed",
+    "cannot connect",
+    "no route to host",
+]
+
+
 def bytes_to_docker_mem_str(num_bytes: int) -> str:
     """
     Convert a number of bytes to a Docker memory string (e.g., "85g", "512m").
@@ -149,16 +162,63 @@ def get_optimal_buffer_values(memory_limit: str) -> Tuple[int, int]:
 
 
 def calculate_max_checkpoint_remap(size_bytes: int) -> int:
-    """
-    Calculate the MaxCheckpointRemap value based on database size.
-    
-    Args:
-        size_bytes: Database size in bytes
-        
-    Returns:
-        int: Calculated MaxCheckpointRemap value
-    """
     return int(size_bytes / 8192 / 4)
+
+
+def get_default_memory() -> str:
+    try:
+        total_ram = psutil.virtual_memory().total
+        default_mem = max(int(total_ram * (2 / 3)), 1 * 1024**3)
+        return bytes_to_docker_mem_str(default_mem)
+    except Exception:
+        return "2g"
+
+
+def calculate_threading_config(parallel_threads=None):
+    cpu_cores = parallel_threads if parallel_threads else (os.cpu_count() or 1)
+    return {
+        "async_queue_max_threads": int(cpu_cores * 1.5),
+        "threads_per_query": cpu_cores,
+        "max_client_connections": cpu_cores * 2,
+    }
+
+
+def calculate_max_query_mem(memory, number_of_buffers):
+    buffer_memory_bytes = number_of_buffers * BYTES_PER_BUFFER
+    effective_memory_bytes = int(parse_memory_value(memory) * VIRTUOSO_MEMORY_PERCENTAGE)
+    max_query_mem_bytes = int((effective_memory_bytes - buffer_memory_bytes) * 0.8)
+    if max_query_mem_bytes > 0:
+        return bytes_to_docker_mem_str(max_query_mem_bytes)
+    return None
+
+
+def is_connection_error(stderr):
+    stderr_lower = stderr.lower()
+    return any(err in stderr_lower for err in CONNECTION_ERROR_PATTERNS)
+
+
+def create_isql_args(dba_password, docker_container=None):
+    if docker_container:
+        return argparse.Namespace(
+            host="localhost",
+            port=1111,
+            user="dba",
+            password=dba_password,
+            docker_container=docker_container,
+            docker_path=DOCKER_EXEC_PATH,
+            docker_isql_path=DOCKER_ISQL_PATH_INSIDE_CONTAINER,
+            isql_path=None,
+        )
+    return argparse.Namespace(
+        host="localhost",
+        port=1111,
+        user="dba",
+        password=dba_password,
+        docker_container=None,
+        docker_path=None,
+        docker_isql_path=None,
+        isql_path="isql",
+    )
 
 
 def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buffers: int = None, max_dirty_buffers: int = None, dirs_allowed: str = None):
@@ -593,8 +653,7 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
                 cmd.extend(["-v", f"{host_path_abs}:{container_path}"])
 
     # Start with default Virtuoso paths
-    default_dirs_allowed = {".", "../vad", "/usr/share/proj", "../virtuoso_input"}
-    paths_to_allow_in_container = default_dirs_allowed
+    paths_to_allow_in_container = DEFAULT_DIRS_ALLOWED.copy()
     paths_to_allow_in_container.add(container_data_dir_path)
     
     # Add extra mounted volumes to paths_to_allow_in_container
@@ -635,37 +694,22 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
             env_vars["VIRT_TempDatabase_MaxCheckpointRemap"] = str(max_checkpoint_remap)
             print(f"Info: Using estimated database size of {args.estimated_db_size_gb} GB to set MaxCheckpointRemap to {max_checkpoint_remap}")
 
-    buffer_memory_bytes = args.number_of_buffers * BYTES_PER_BUFFER
-    effective_memory_bytes = int(parse_memory_value(args.memory) * VIRTUOSO_MEMORY_PERCENTAGE)
-    max_query_mem_bytes = int(effective_memory_bytes - buffer_memory_bytes)
-    # Leave some margin (use 80% of remaining)
-    max_query_mem_bytes = int(max_query_mem_bytes * 0.8)
-    if max_query_mem_bytes > 0:
-        max_query_mem_str = bytes_to_docker_mem_str(max_query_mem_bytes)
+    max_query_mem_str = calculate_max_query_mem(args.memory, args.number_of_buffers)
+    if max_query_mem_str:
         env_vars["VIRT_Parameters_MaxQueryMem"] = max_query_mem_str
     else:
         max_query_mem_str = "N/A"
 
-    # Enable adaptive vector sizing for better performance on large queries
     env_vars["VIRT_Parameters_AdjustVectorSize"] = "1"
     env_vars["VIRT_Parameters_MaxVectorSize"] = "1000000"
 
-    # Set threading parameters for query parallelization
-    if args.parallel_threads is not None:
-        cpu_cores = args.parallel_threads
-    else:
-        cpu_cores = os.cpu_count() or 1
+    threading = calculate_threading_config(args.parallel_threads)
+    env_vars["VIRT_Parameters_AsyncQueueMaxThreads"] = str(threading["async_queue_max_threads"])
+    env_vars["VIRT_Parameters_ThreadsPerQuery"] = str(threading["threads_per_query"])
+    env_vars["VIRT_Parameters_MaxClientConnections"] = str(threading["max_client_connections"])
+    env_vars["VIRT_HTTPServer_ServerThreads"] = str(threading["max_client_connections"])
 
-    async_queue_max_threads = int(cpu_cores * 1.5)
-    threads_per_query = cpu_cores
-    max_client_connections = cpu_cores * 2
-
-    env_vars["VIRT_Parameters_AsyncQueueMaxThreads"] = str(async_queue_max_threads)
-    env_vars["VIRT_Parameters_ThreadsPerQuery"] = str(threads_per_query)
-    env_vars["VIRT_Parameters_MaxClientConnections"] = str(max_client_connections)
-    env_vars["VIRT_HTTPServer_ServerThreads"] = str(max_client_connections)
-
-    print(f"Info: Using {cpu_cores} CPU cores: AsyncQueueMaxThreads={async_queue_max_threads}, ThreadsPerQuery={threads_per_query}, MaxClientConnections={max_client_connections}")
+    print(f"Info: Using {threading['threads_per_query']} CPU cores: AsyncQueueMaxThreads={threading['async_queue_max_threads']}, ThreadsPerQuery={threading['threads_per_query']}, MaxClientConnections={threading['max_client_connections']}")
     print(f"Info: MaxQueryMem={max_query_mem_str}, AdjustVectorSize=1, MaxVectorSize=1000000")
 
     for key, value in env_vars.items():
@@ -686,72 +730,34 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
 
 
 def wait_for_virtuoso_ready(
-    container_name: str,
-    host: str, # Usually localhost for readiness check
-    isql_port: int,
     dba_password: str,
-    timeout: int = 120
+    docker_container: str = None,
+    timeout: int = DEFAULT_WAIT_TIMEOUT,
+    poll_interval: int = 3,
 ) -> bool:
-    """
-    Wait until Virtuoso is ready to accept ISQL connections.
-
-    Uses isql_helpers.run_isql_command to execute 'status();'.
-
-    Args:
-        container_name: Name of the Virtuoso container (used for logging)
-        host: Hostname or IP address to connect to (usually localhost).
-        isql_port: The ISQL port Virtuoso is listening on (host port).
-        dba_password: The DBA password for Virtuoso.
-        timeout: Maximum time to wait in seconds.
-
-    Returns:
-        bool: True if Virtuoso is ready, False if timeout or error occurred.
-    """
-    print(f"Waiting for Virtuoso ISQL connection via Docker exec (timeout: {timeout}s)... using '{DOCKER_ISQL_PATH_INSIDE_CONTAINER}' in container")
+    print(f"Waiting for Virtuoso to be ready (timeout: {timeout}s)...")
     start_time = time.time()
-
-    # Create a temporary args object compatible with run_isql_command
-    isql_helper_args = argparse.Namespace(
-        host="localhost",
-        port=1111,
-        user="dba",
-        password=dba_password,
-        docker_container=container_name,
-        docker_path=DOCKER_EXEC_PATH,
-        docker_isql_path=DOCKER_ISQL_PATH_INSIDE_CONTAINER,
-        isql_path=None
-    )
+    isql_args = create_isql_args(dba_password, docker_container)
 
     while time.time() - start_time < timeout:
         try:
-            success, stdout, stderr = run_isql_command(
-                isql_helper_args,
-                sql_command="status();"
-            )
-
+            success, _, stderr = run_isql_command(isql_args, sql_command="status();")
             if success:
-                print("Virtuoso is ready! (ISQL connection successful)")
+                print("Virtuoso is ready.")
                 return True
+            if is_connection_error(stderr):
+                elapsed = int(time.time() - start_time)
+                if elapsed % 10 == 0:
+                    print(f"  Waiting for Virtuoso... ({elapsed}s elapsed)")
             else:
-                stderr_lower = stderr.lower()
-                if "connection refused" in stderr_lower or \
-                   "connect failed" in stderr_lower or \
-                   "connection failed" in stderr_lower or \
-                   "cannot connect" in stderr_lower or \
-                   "no route to host" in stderr_lower:
-                    if int(time.time() - start_time) % 10 == 0:
-                        print(f"  (ISQL connection failed, retrying... {int(time.time() - start_time)}s elapsed)")
-                else:
-                    print(f"ISQL check failed with an unexpected error. See previous logs. Stopping wait.", file=sys.stderr)
-                    return False
-
-            time.sleep(3)
-
+                print(f"ISQL check failed: {stderr}", file=sys.stderr)
+                return False
+            time.sleep(poll_interval)
         except Exception as e:
-            print(f"Warning: Unexpected error in readiness check loop: {e}", file=sys.stderr)
-            time.sleep(5)
+            print(f"Warning: Error in readiness check: {e}", file=sys.stderr)
+            time.sleep(poll_interval + 2)
 
-    print(f"Timeout ({timeout}s) waiting for Virtuoso ISQL connection at {host}:{isql_port}.")
+    print(f"Timeout ({timeout}s) waiting for Virtuoso.", file=sys.stderr)
     return False
 
 
@@ -780,44 +786,25 @@ def run_docker_command(cmd: List[str], capture_output=False, check=True, suppres
          raise
 
 
-def grant_write_permissions(args: argparse.Namespace) -> bool:
-    """
-    Grant write permissions for 'nobody' and 'SPARQL' users.
+def grant_write_permissions(dba_password: str, docker_container: str = None) -> bool:
+    print("Granting write permissions...")
+    isql_args = create_isql_args(dba_password, docker_container)
 
-    Args:
-        args: Command-line arguments containing connection details.
-
-    Returns:
-        bool: True if permissions were set successfully, False otherwise.
-    """
-    print("Granting write permissions for 'nobody' and 'SPARQL' users...")
-
-    isql_helper_args = argparse.Namespace(
-        host="localhost",
-        port=1111, # Internal Docker port for Virtuoso
-        user="dba",
-        password=args.dba_password,
-        docker_container=args.name,
-        docker_path=DOCKER_EXEC_PATH,
-        docker_isql_path=DOCKER_ISQL_PATH_INSIDE_CONTAINER,
-        isql_path=None
+    success1, _, stderr1 = run_isql_command(
+        isql_args, sql_command="DB.DBA.RDF_DEFAULT_USER_PERMS_SET('nobody', 7);"
     )
-
-    cmd1 = "DB.DBA.RDF_DEFAULT_USER_PERMS_SET('nobody', 7);"
-    print(f"Executing: {cmd1}")
-    success1, _, stderr1 = run_isql_command(isql_helper_args, sql_command=cmd1)
     if success1:
-        print("  Successfully set permissions for 'nobody' user.")
+        print("  Set permissions for 'nobody' user.")
     else:
-        print(f"  Warning: Failed to set permissions for 'nobody' user. Error: {stderr1}", file=sys.stderr)
+        print(f"  Warning: Failed to set 'nobody' permissions: {stderr1}", file=sys.stderr)
 
-    cmd2 = "DB.DBA.USER_GRANT_ROLE('SPARQL', 'SPARQL_UPDATE');"
-    print(f"Executing: {cmd2}")
-    success2, _, stderr2 = run_isql_command(isql_helper_args, sql_command=cmd2)
+    success2, _, stderr2 = run_isql_command(
+        isql_args, sql_command="DB.DBA.USER_GRANT_ROLE('SPARQL', 'SPARQL_UPDATE');"
+    )
     if success2:
-        print("  Successfully granted SPARQL_UPDATE role to 'SPARQL' user.")
+        print("  Granted SPARQL_UPDATE role to 'SPARQL' user.")
     else:
-        print(f"  Warning: Failed to grant SPARQL_UPDATE role to 'SPARQL' user. Error: {stderr2}", file=sys.stderr)
+        print(f"  Warning: Failed to grant SPARQL_UPDATE: {stderr2}", file=sys.stderr)
 
     return success1 and success2
 
@@ -939,14 +926,12 @@ def launch_virtuoso(  # pragma: no cover
 
         if detach and should_wait:
             print("Waiting for Virtuoso readiness...")
-            ready = wait_for_virtuoso_ready(
-                name, "localhost", isql_port, dba_password, timeout=DEFAULT_WAIT_TIMEOUT
-            )
+            ready = wait_for_virtuoso_ready(dba_password, docker_container=name)
             if not ready:
                 raise RuntimeError("Virtuoso readiness check timed out or failed.")
 
             if enable_write_permissions:
-                if not grant_write_permissions(args):
+                if not grant_write_permissions(dba_password, docker_container=name):
                     print("Warning: One or more commands to enable write permissions failed.", file=sys.stderr)
 
         print(f"Virtuoso launched successfully on http://localhost:{http_port}/sparql")
