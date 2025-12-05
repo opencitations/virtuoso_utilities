@@ -31,6 +31,7 @@ from virtuoso_utilities.launch_virtuoso import (
     DEFAULT_CONTAINER_DATA_DIR,
     DEFAULT_DIRS_ALLOWED,
     MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP,
+    bytes_to_docker_mem_str,
     calculate_max_checkpoint_remap,
     calculate_max_query_mem,
     calculate_threading_config,
@@ -54,10 +55,33 @@ ENV_ORIGINAL_ENTRYPOINT = "VIRTUOSO_ORIGINAL_ENTRYPOINT"
 
 DEFAULT_ORIGINAL_ENTRYPOINT = "/virtuoso-entrypoint.sh"
 
+CGROUP_V2_MEMORY_MAX = "/sys/fs/cgroup/memory.max"
+CGROUP_V1_MEMORY_LIMIT = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+
+
+def get_container_memory_limit():
+    for path in [CGROUP_V2_MEMORY_MAX, CGROUP_V1_MEMORY_LIMIT]:
+        try:
+            with open(path) as f:
+                value = f.read().strip()
+                if value != "max":
+                    return int(value)
+        except (FileNotFoundError, ValueError, PermissionError):
+            continue
+    return None
+
+
+def get_native_default_memory():
+    container_limit = get_container_memory_limit()
+    if container_limit:
+        default_mem = max(int(container_limit * (2 / 3)), 1 * 1024**3)
+        return bytes_to_docker_mem_str(default_mem)
+    return get_default_memory()
+
 
 def get_config_from_env():
     config = {}
-    config["memory"] = os.environ.get(ENV_MEMORY) or get_default_memory()
+    config["memory"] = os.environ.get(ENV_MEMORY) or get_native_default_memory()
     config["dba_password"] = (
         os.environ.get(ENV_DBA_PASSWORD) or os.environ.get("DBA_PASSWORD", "dba")
     )
@@ -115,6 +139,9 @@ def configure_virtuoso(config):
 
 
 def set_virt_env_vars(config):
+    os.environ["VIRT_Parameters_NumberOfBuffers"] = str(config["number_of_buffers"])
+    os.environ["VIRT_Parameters_MaxDirtyBuffers"] = str(config["max_dirty_buffers"])
+
     threading = calculate_threading_config(config["parallel_threads"])
     os.environ["VIRT_Parameters_AsyncQueueMaxThreads"] = str(
         threading["async_queue_max_threads"]
@@ -185,7 +212,9 @@ def main():
 
     remaining_args = sys.argv[1:] if len(sys.argv) > 1 else []
     print(f"Info: Executing original entrypoint: {config['original_entrypoint']}")
-    os.execv(config["original_entrypoint"], [config["original_entrypoint"]] + remaining_args)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os.execve(config["original_entrypoint"], [config["original_entrypoint"]] + remaining_args, os.environ)
 
     return 0
 

@@ -29,7 +29,12 @@ docker compose -f docker-compose.example.yml up
 ```dockerfile
 FROM openlink/virtuoso-opensource-7:latest
 
-RUN pip install virtuoso-utilities
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --break-system-packages virtuoso-utilities
 
 ENTRYPOINT ["virtuoso-native-launch"]
 ```
