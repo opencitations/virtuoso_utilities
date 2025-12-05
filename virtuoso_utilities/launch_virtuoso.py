@@ -27,6 +27,7 @@ DEFAULT_CONTAINER_DATA_DIR = "/opt/virtuoso-opensource/database"
 DEFAULT_MAX_ROWS = 100000
 
 VIRTUOSO_MEMORY_PERCENTAGE = 0.85
+BYTES_PER_BUFFER = 8700  # Each buffer occupies ~8700 bytes (8K page + overhead) according to https://docs.openlinksw.com/virtuoso/ch-server/
 
 from virtuoso_utilities.isql_helpers import run_isql_command
 
@@ -135,7 +136,7 @@ def get_optimal_buffer_values(memory_limit: str) -> Tuple[int, int]:
 
         memory_bytes = int(memory_bytes * VIRTUOSO_MEMORY_PERCENTAGE)
 
-        number_of_buffers = int((memory_bytes * 0.66) / 8000)
+        number_of_buffers = int((memory_bytes * 0.66) / BYTES_PER_BUFFER)
 
         max_dirty_buffers = int(number_of_buffers * 0.75)
 
@@ -436,7 +437,16 @@ def parse_arguments() -> argparse.Namespace:  # pragma: no cover
         default=None,
         help="Virtuoso Docker image SHA256 digest to use (e.g., 'sha256:e07868a3db9090400332eaa8ee694b8cf9bf7eebc26db6bbdc3bb92fd30ed010'). Takes precedence over --virtuoso-version."
     )
-    
+
+    parser.add_argument(
+        "--parallel-threads",
+        type=int,
+        default=None,
+        help="Maximum parallel threads for query execution. "
+             "If not specified, uses all available CPU cores. "
+             "Sets AsyncQueueMaxThreads to cores * 1.5 and ThreadsPerQuery to cores."
+    )
+
     args_temp, _ = parser.parse_known_args()
 
     optimal_number_of_buffers, optimal_max_dirty_buffers = get_optimal_buffer_values(args_temp.memory)
@@ -625,6 +635,39 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
             env_vars["VIRT_TempDatabase_MaxCheckpointRemap"] = str(max_checkpoint_remap)
             print(f"Info: Using estimated database size of {args.estimated_db_size_gb} GB to set MaxCheckpointRemap to {max_checkpoint_remap}")
 
+    buffer_memory_bytes = args.number_of_buffers * BYTES_PER_BUFFER
+    effective_memory_bytes = int(parse_memory_value(args.memory) * VIRTUOSO_MEMORY_PERCENTAGE)
+    max_query_mem_bytes = int(effective_memory_bytes - buffer_memory_bytes)
+    # Leave some margin (use 80% of remaining)
+    max_query_mem_bytes = int(max_query_mem_bytes * 0.8)
+    if max_query_mem_bytes > 0:
+        max_query_mem_str = bytes_to_docker_mem_str(max_query_mem_bytes)
+        env_vars["VIRT_Parameters_MaxQueryMem"] = max_query_mem_str
+    else:
+        max_query_mem_str = "N/A"
+
+    # Enable adaptive vector sizing for better performance on large queries
+    env_vars["VIRT_Parameters_AdjustVectorSize"] = "1"
+    env_vars["VIRT_Parameters_MaxVectorSize"] = "1000000"
+
+    # Set threading parameters for query parallelization
+    if args.parallel_threads is not None:
+        cpu_cores = args.parallel_threads
+    else:
+        cpu_cores = os.cpu_count() or 1
+
+    async_queue_max_threads = int(cpu_cores * 1.5)
+    threads_per_query = cpu_cores
+    max_client_connections = cpu_cores * 2
+
+    env_vars["VIRT_Parameters_AsyncQueueMaxThreads"] = str(async_queue_max_threads)
+    env_vars["VIRT_Parameters_ThreadsPerQuery"] = str(threads_per_query)
+    env_vars["VIRT_Parameters_MaxClientConnections"] = str(max_client_connections)
+    env_vars["VIRT_HTTPServer_ServerThreads"] = str(max_client_connections)
+
+    print(f"Info: Using {cpu_cores} CPU cores: AsyncQueueMaxThreads={async_queue_max_threads}, ThreadsPerQuery={threads_per_query}, MaxClientConnections={max_client_connections}")
+    print(f"Info: MaxQueryMem={max_query_mem_str}, AdjustVectorSize=1, MaxVectorSize=1000000")
+
     for key, value in env_vars.items():
         cmd.extend(["-e", f"{key}={value}"])
     
@@ -796,6 +839,7 @@ def launch_virtuoso(  # pragma: no cover
     virtuoso_version: str = None,
     virtuoso_sha: str = None,
     estimated_db_size_gb: float = 0,
+    parallel_threads: int = None,
 ) -> None:
     """
     Launch Virtuoso Docker container.
@@ -817,6 +861,7 @@ def launch_virtuoso(  # pragma: no cover
         virtuoso_version: Docker image version tag
         virtuoso_sha: Docker image SHA digest (takes precedence over version)
         estimated_db_size_gb: Estimated DB size for MaxCheckpointRemap config
+        parallel_threads: Max parallel threads for query execution. If None, uses all CPU cores.
 
     Raises:
         RuntimeError: If Docker is not installed or launch fails
@@ -856,6 +901,7 @@ def launch_virtuoso(  # pragma: no cover
         estimated_db_size_gb=estimated_db_size_gb,
         number_of_buffers=number_of_buffers,
         max_dirty_buffers=max_dirty_buffers,
+        parallel_threads=parallel_threads,
     )
 
     host_data_dir_abs = os.path.abspath(data_dir)
@@ -938,6 +984,7 @@ def main() -> int: # pragma: no cover
             virtuoso_version=args.virtuoso_version,
             virtuoso_sha=args.virtuoso_sha,
             estimated_db_size_gb=args.estimated_db_size_gb,
+            parallel_threads=args.parallel_threads,
         )
         return 0
     except RuntimeError as e:

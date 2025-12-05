@@ -60,6 +60,7 @@ Use `virtuoso-launch --help` to see all available options:
 | `--force-remove` | Force removal of existing container with the same name | `false` |
 | `--virtuoso-version` | Virtuoso Docker image version/tag | `latest` |
 | `--virtuoso-sha` | Virtuoso Docker image SHA256 digest (takes precedence over version) | - |
+| `--parallel-threads` | Maximum parallel threads for query execution. If not specified, uses all available CPU cores | Auto-detected |
 
 ## Memory-based configuration
 
@@ -79,13 +80,21 @@ To prevent out-of-memory (OOM) crashes, the script sets Docker's `--memory-reser
 
 ### Virtuoso internal buffers
 
-The script calculates optimal values for `NumberOfBuffers` and `MaxDirtyBuffers` based on 85% of the container memory limit using the formula from the [OpenLink Virtuoso Performance Tuning documentation](https://community.openlinksw.com/t/performance-tuning-virtuoso-for-rdf-queries-and-other-use/1692):
+The script calculates optimal values for `NumberOfBuffers` and `MaxDirtyBuffers` based on 85% of the container memory limit:
 
 ```
 EffectiveMemory = ContainerMemoryLimit * 0.85
-NumberOfBuffers = (EffectiveMemory * 0.66) / 8000
+NumberOfBuffers = (EffectiveMemory * 0.66) / 8700
 MaxDirtyBuffers = NumberOfBuffers * 0.75
 ```
+
+These formulas are derived from official OpenLink documentation:
+
+- **Buffer size (8700 bytes)**: According to [Performance diagnostics](https://docs.openlinksw.com/virtuoso/ch-server/): *"Each buffer caches one 8K page of data and occupies approximately 8700 bytes of memory."*
+
+- **Memory allocation (66%)**: According to [RDF Performance Tuning](https://docs.openlinksw.com/virtuoso/ch-server/): *"Adding more than 60-70% of system ram as buffers is not useful."*
+
+- **MaxDirtyBuffers (75%)**: According to [RDF Performance Tuning](https://docs.openlinksw.com/virtuoso/rdfperformancetuning/): *"Typical sizes for the NumberOfBuffers and MaxDirtyBuffers (3/4 of NumberOfBuffers) parameters"*
 
 **Example with `--memory 10g`:**
 - Docker hard limit: 10g (100%)
@@ -114,6 +123,62 @@ Use `--estimated-db-size-gb` to preconfigure `MaxCheckpointRemap` via environmen
 ```bash
 virtuoso-launch --estimated-db-size-gb 100
 ```
+
+## Query parallelization
+
+The script automatically configures Virtuoso for parallel query execution based on available CPU cores.
+
+### Threading parameters
+
+When launched, the script sets:
+
+```
+AsyncQueueMaxThreads = CPU_cores * 1.5
+ThreadsPerQuery = CPU_cores
+MaxClientConnections = CPU_cores * 2
+HTTPServer_ServerThreads = CPU_cores * 2
+```
+
+You can override the detected CPU count using `--parallel-threads`:
+
+```bash
+virtuoso-launch --parallel-threads 8
+```
+
+### Query memory
+
+The script calculates `MaxQueryMem` to prevent out-of-memory errors during query execution:
+
+```
+MaxQueryMem = (EffectiveMemory - BufferMemory) * 0.8
+```
+
+This ensures queries have dedicated memory separate from the buffer pool.
+
+### Adaptive vector sizing
+
+The script enables adaptive vector sizing for better performance on large queries:
+
+```
+AdjustVectorSize = 1
+MaxVectorSize = 1000000
+```
+
+### Documentation sources
+
+- **AsyncQueueMaxThreads**: According to [Virtuoso configuration tips](https://github.com/dbcls/bh11/wiki/Virtuoso-configuration-tips): *"This should be set to either 1.5 * the number of cores or 1.5 * the number of core threads; see which works better."*
+
+- **ThreadsPerQuery**: According to [Configuration Parameters for Vectoring and Parallelization](https://docs.openlinksw.com/virtuoso/vexqrparlconfp/): *"The number of cores on the machine is a reasonable default if running large queries."*
+
+- **MaxClientConnections**: According to [OpenLink Community](https://community.openlinksw.com/t/virtuoso-maxclientconnections-configuration-parameter/3828): *"sets the maximum number of threads that can be allocated for SQL Connectivity"*. Set to `CPU_cores * 2` to ensure it exceeds `AsyncQueueMaxThreads`.
+
+- **AdjustVectorSize**: According to [Configuration Parameters for Vectoring and Parallelization](https://docs.openlinksw.com/virtuoso/vexqrparlconfp/): *"Set AdjustVectorSize = 1 to enable this feature. The SQL execution engine will increase the vector size when it sees an index lookup that does not get good locality."* This can yield *"up to a 3x speed-up"* on large queries.
+
+- **MaxVectorSize**: According to [Configuration Parameters for Vectoring and Parallelization](https://docs.openlinksw.com/virtuoso/vexqrparlconfp/): *"When AdjustVectorSize is on, this setting gives the maximum vector size. The default is 1,000,000 and the largest allowed value is about 3,500,000."*
+
+<Aside type="note" title="Virtuoso 7.0+">
+These parallelization settings only apply to Virtuoso 7.0 and later versions.
+</Aside>
 
 ## Client SQL timeouts
 

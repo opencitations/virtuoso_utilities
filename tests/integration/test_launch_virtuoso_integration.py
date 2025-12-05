@@ -12,6 +12,7 @@ Tests cover:
 
 import argparse
 import configparser
+import os
 import shutil
 import subprocess
 import uuid
@@ -20,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from virtuoso_utilities.launch_virtuoso import (
-    DEFAULT_IMAGE, MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP,
+    BYTES_PER_BUFFER, DEFAULT_IMAGE, MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP,
     VIRTUOSO_MEMORY_PERCENTAGE, build_docker_run_command,
     bytes_to_docker_mem_str, calculate_max_checkpoint_remap,
     check_container_exists, check_docker_installed, get_directory_size,
@@ -181,10 +182,10 @@ class TestGetOptimalBufferValues:
         """Calculate buffer values based on memory limit."""
         num_buffers, max_dirty = get_optimal_buffer_values("2g")
         # Verify calculations match the formula:
-        # NumberOfBuffers = (MemoryInBytes * VIRTUOSO_MEMORY_PERCENTAGE * 0.66) / 8000
+        # NumberOfBuffers = (MemoryInBytes * VIRTUOSO_MEMORY_PERCENTAGE * 0.66) / BYTES_PER_BUFFER
         # MaxDirtyBuffers = NumberOfBuffers * 0.75
         memory_bytes = 2 * 1024**3
-        expected_num = int((memory_bytes * VIRTUOSO_MEMORY_PERCENTAGE * 0.66) / 8000)
+        expected_num = int((memory_bytes * VIRTUOSO_MEMORY_PERCENTAGE * 0.66) / BYTES_PER_BUFFER)
         expected_dirty = int(expected_num * 0.75)
         assert num_buffers == expected_num
         assert max_dirty == expected_dirty
@@ -388,6 +389,7 @@ class TestBuildDockerRunCommand:
             "virtuoso_sha": None,
             "max_dirty_buffers": 130000,
             "number_of_buffers": 170000,
+            "parallel_threads": None,
         }
         defaults.update(kwargs)
         return argparse.Namespace(**defaults)
@@ -479,6 +481,188 @@ class TestBuildDockerRunCommand:
         assert "openlink/virtuoso-opensource-7@sha256:abc123" in cmd
 
 
+class TestMaxQueryMemCalculation:
+    """Tests for MaxQueryMem calculation in build_docker_run_command."""
+
+    def _create_args(self, **kwargs):
+        """Create argparse.Namespace with default values."""
+        defaults = {
+            "name": "test-virtuoso",
+            "http_port": 8890,
+            "isql_port": 1111,
+            "data_dir": "/tmp/virtuoso-data",
+            "extra_volumes": None,
+            "memory": "4g",
+            "cpu_limit": 0,
+            "dba_password": "dba",
+            "force_remove": False,
+            "network": None,
+            "wait_ready": False,
+            "detach": False,
+            "enable_write_permissions": False,
+            "estimated_db_size_gb": 0,
+            "virtuoso_version": None,
+            "virtuoso_sha": None,
+            "max_dirty_buffers": 130000,
+            "number_of_buffers": 170000,
+            "parallel_threads": None,
+        }
+        defaults.update(kwargs)
+        return argparse.Namespace(**defaults)
+
+    def test_max_query_mem_calculation(self, temp_data_dir):
+        """Verify MaxQueryMem is calculated correctly."""
+        memory = "4g"
+        number_of_buffers = 100000
+        args = self._create_args(
+            data_dir=str(temp_data_dir),
+            memory=memory,
+            number_of_buffers=number_of_buffers,
+        )
+        cmd, _ = build_docker_run_command(args)
+        cmd_str = " ".join(cmd)
+
+        memory_bytes = 4 * 1024**3
+        effective_memory_bytes = int(memory_bytes * VIRTUOSO_MEMORY_PERCENTAGE)
+        buffer_memory_bytes = number_of_buffers * BYTES_PER_BUFFER
+        expected_bytes = int((effective_memory_bytes - buffer_memory_bytes) * 0.8)
+        expected_str = bytes_to_docker_mem_str(expected_bytes)
+
+        assert f"VIRT_Parameters_MaxQueryMem={expected_str}" in cmd_str
+
+    def test_max_query_mem_not_set_when_negative(self, temp_data_dir):
+        """Verify MaxQueryMem is not set when calculation yields <= 0."""
+        memory = "1g"
+        number_of_buffers = 500000
+        args = self._create_args(
+            data_dir=str(temp_data_dir),
+            memory=memory,
+            number_of_buffers=number_of_buffers,
+        )
+        cmd, _ = build_docker_run_command(args)
+        cmd_str = " ".join(cmd)
+
+        assert "VIRT_Parameters_MaxQueryMem" not in cmd_str
+
+
+class TestVectorSizeSettings:
+    """Tests for AdjustVectorSize and MaxVectorSize settings."""
+
+    def _create_args(self, **kwargs):
+        """Create argparse.Namespace with default values."""
+        defaults = {
+            "name": "test-virtuoso",
+            "http_port": 8890,
+            "isql_port": 1111,
+            "data_dir": "/tmp/virtuoso-data",
+            "extra_volumes": None,
+            "memory": "2g",
+            "cpu_limit": 0,
+            "dba_password": "dba",
+            "force_remove": False,
+            "network": None,
+            "wait_ready": False,
+            "detach": False,
+            "enable_write_permissions": False,
+            "estimated_db_size_gb": 0,
+            "virtuoso_version": None,
+            "virtuoso_sha": None,
+            "max_dirty_buffers": 130000,
+            "number_of_buffers": 170000,
+            "parallel_threads": None,
+        }
+        defaults.update(kwargs)
+        return argparse.Namespace(**defaults)
+
+    def test_adjust_vector_size_enabled(self, temp_data_dir):
+        """Verify AdjustVectorSize is set to 1."""
+        args = self._create_args(data_dir=str(temp_data_dir))
+        cmd, _ = build_docker_run_command(args)
+        cmd_str = " ".join(cmd)
+        assert "VIRT_Parameters_AdjustVectorSize=1" in cmd_str
+
+    def test_max_vector_size_default(self, temp_data_dir):
+        """Verify MaxVectorSize is set to 1000000."""
+        args = self._create_args(data_dir=str(temp_data_dir))
+        cmd, _ = build_docker_run_command(args)
+        cmd_str = " ".join(cmd)
+        assert "VIRT_Parameters_MaxVectorSize=1000000" in cmd_str
+
+
+class TestThreadingParameters:
+    """Tests for CPU-based threading parameters."""
+
+    def _create_args(self, **kwargs):
+        """Create argparse.Namespace with default values."""
+        defaults = {
+            "name": "test-virtuoso",
+            "http_port": 8890,
+            "isql_port": 1111,
+            "data_dir": "/tmp/virtuoso-data",
+            "extra_volumes": None,
+            "memory": "2g",
+            "cpu_limit": 0,
+            "dba_password": "dba",
+            "force_remove": False,
+            "network": None,
+            "wait_ready": False,
+            "detach": False,
+            "enable_write_permissions": False,
+            "estimated_db_size_gb": 0,
+            "virtuoso_version": None,
+            "virtuoso_sha": None,
+            "max_dirty_buffers": 130000,
+            "number_of_buffers": 170000,
+            "parallel_threads": None,
+        }
+        defaults.update(kwargs)
+        return argparse.Namespace(**defaults)
+
+    def test_threading_with_explicit_parallel_threads(self, temp_data_dir):
+        """Verify threading parameters with explicit --parallel-threads."""
+        cpu_cores = 8
+        args = self._create_args(
+            data_dir=str(temp_data_dir),
+            parallel_threads=cpu_cores,
+        )
+        cmd, _ = build_docker_run_command(args)
+        cmd_str = " ".join(cmd)
+
+        assert f"VIRT_Parameters_AsyncQueueMaxThreads={int(cpu_cores * 1.5)}" in cmd_str
+        assert f"VIRT_Parameters_ThreadsPerQuery={cpu_cores}" in cmd_str
+        assert f"VIRT_Parameters_MaxClientConnections={cpu_cores * 2}" in cmd_str
+        assert f"VIRT_HTTPServer_ServerThreads={cpu_cores * 2}" in cmd_str
+
+    def test_threading_with_auto_detected_cores(self, temp_data_dir):
+        """Verify threading parameters use os.cpu_count() when parallel_threads=None."""
+        args = self._create_args(
+            data_dir=str(temp_data_dir),
+            parallel_threads=None,
+        )
+        cmd, _ = build_docker_run_command(args)
+        cmd_str = " ".join(cmd)
+
+        cpu_cores = os.cpu_count() or 1
+        assert f"VIRT_Parameters_AsyncQueueMaxThreads={int(cpu_cores * 1.5)}" in cmd_str
+        assert f"VIRT_Parameters_ThreadsPerQuery={cpu_cores}" in cmd_str
+        assert f"VIRT_Parameters_MaxClientConnections={cpu_cores * 2}" in cmd_str
+        assert f"VIRT_HTTPServer_ServerThreads={cpu_cores * 2}" in cmd_str
+
+    def test_threading_with_single_core(self, temp_data_dir):
+        """Verify threading parameters work with single core."""
+        args = self._create_args(
+            data_dir=str(temp_data_dir),
+            parallel_threads=1,
+        )
+        cmd, _ = build_docker_run_command(args)
+        cmd_str = " ".join(cmd)
+
+        assert "VIRT_Parameters_AsyncQueueMaxThreads=1" in cmd_str
+        assert "VIRT_Parameters_ThreadsPerQuery=1" in cmd_str
+        assert "VIRT_Parameters_MaxClientConnections=2" in cmd_str
+        assert "VIRT_HTTPServer_ServerThreads=2" in cmd_str
+
+
 # =============================================================================
 # 4. Docker interaction tests (require Docker)
 # =============================================================================
@@ -558,6 +742,7 @@ class TestLaunchVirtuosoIntegration:
             virtuoso_sha=None,
             max_dirty_buffers=10000,
             number_of_buffers=15000,
+            parallel_threads=None,
         )
 
     @pytest.mark.timeout(120)
@@ -710,6 +895,7 @@ class TestLaunchVirtuosoIntegration:
             virtuoso_sha=None,
             max_dirty_buffers=10000,
             number_of_buffers=15000,
+            parallel_threads=None,
         )
         cmd, _ = build_docker_run_command(args)
         cmd_str = " ".join(cmd)
@@ -743,6 +929,7 @@ class TestLaunchVirtuosoIntegration:
             virtuoso_sha=None,
             max_dirty_buffers=10000,
             number_of_buffers=15000,
+            parallel_threads=None,
         )
         cmd, paths = build_docker_run_command(args)
         assert "/extra_data" in paths
