@@ -221,7 +221,7 @@ def create_isql_args(dba_password, docker_container=None):
     )
 
 
-def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buffers: int = None, max_dirty_buffers: int = None, dirs_allowed: str = None):
+def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buffers: int = None, max_dirty_buffers: int = None, dirs_allowed: str = None, async_queue_max_threads: int = None, threads_per_query: int = None, max_client_connections: int = None):
     """
     Updates settings in the virtuoso.ini file:
     - MaxCheckpointRemap: based on the actual size of the data directory
@@ -236,6 +236,9 @@ def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buff
         number_of_buffers: Optional value for NumberOfBuffers setting.
         max_dirty_buffers: Optional value for MaxDirtyBuffers setting.
         dirs_allowed: Optional value for DirsAllowed setting (comma-separated string).
+        async_queue_max_threads: Optional value for AsyncQueueMaxThreads setting.
+        threads_per_query: Optional value for ThreadsPerQuery setting.
+        max_client_connections: Optional value for MaxClientConnections setting.
     """
     if not os.path.exists(ini_path):
         print(f"Info: virtuoso.ini not found at '{ini_path}'. Likely first run. Skipping settings update.")
@@ -304,6 +307,30 @@ def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buff
             if normalize_dirs(current_dirs_allowed) != normalize_dirs(dirs_allowed):
                 config.set('Parameters', 'DirsAllowed', dirs_allowed)
                 print(f"Info: Updating [Parameters] DirsAllowed from '{current_dirs_allowed}' to '{dirs_allowed}' in '{ini_path}'.")
+                made_changes = True
+
+        if async_queue_max_threads is not None:
+            current_val = config.get('Parameters', 'AsyncQueueMaxThreads', fallback=None)
+            new_val = str(async_queue_max_threads)
+            if current_val != new_val:
+                config.set('Parameters', 'AsyncQueueMaxThreads', new_val)
+                print(f"Info: Updating [Parameters] AsyncQueueMaxThreads from '{current_val}' to '{new_val}' in '{ini_path}'.")
+                made_changes = True
+
+        if threads_per_query is not None:
+            current_val = config.get('Parameters', 'ThreadsPerQuery', fallback=None)
+            new_val = str(threads_per_query)
+            if current_val != new_val:
+                config.set('Parameters', 'ThreadsPerQuery', new_val)
+                print(f"Info: Updating [Parameters] ThreadsPerQuery from '{current_val}' to '{new_val}' in '{ini_path}'.")
+                made_changes = True
+
+        if max_client_connections is not None:
+            current_val = config.get('Parameters', 'MaxClientConnections', fallback=None)
+            new_val = str(max_client_connections)
+            if current_val != new_val:
+                config.set('Parameters', 'MaxClientConnections', new_val)
+                print(f"Info: Updating [Parameters] MaxClientConnections from '{current_val}' to '{new_val}' in '{ini_path}'.")
                 made_changes = True
 
         # Update MaxCheckpointRemap if database is large enough

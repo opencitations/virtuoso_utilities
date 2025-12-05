@@ -124,12 +124,16 @@ def configure_virtuoso(config):
         )
         dirs.update(extra)
 
+    threading = calculate_threading_config(config["parallel_threads"])
     update_ini_memory_settings(
         ini_path=ini_path,
         data_dir_path=data_dir,
         number_of_buffers=config["number_of_buffers"],
         max_dirty_buffers=config["max_dirty_buffers"],
         dirs_allowed=",".join(dirs),
+        async_queue_max_threads=threading["async_queue_max_threads"],
+        threads_per_query=threading["threads_per_query"],
+        max_client_connections=threading["max_client_connections"],
     )
 
     print(
