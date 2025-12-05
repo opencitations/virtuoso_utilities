@@ -1,6 +1,6 @@
 [project]
 name = "virtuoso-utilities"
-version = "1.8.1"
+version = "1.8.2"
 description = "A collection of Python utilities for interacting with OpenLink Virtuoso."
 authors = [
     {name = "arcangelo7",email = "arcangelo.massari@unibo.it"}

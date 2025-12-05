@@ -1,3 +1,10 @@
+## [1.8.2](https://github.com/opencitations/virtuoso_utilities/compare/v1.8.1...v1.8.2) (2025-12-05)
+
+
+### Bug Fixes
+
+* **native_entrypoint:** write threading parameters directly to virtuoso.ini ([a4dd7c0](https://github.com/opencitations/virtuoso_utilities/commit/a4dd7c008074241b9ae43d5a208113c7df039723))
+
 ## [1.8.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.8.0...v1.8.1) (2025-12-05)
 
 
