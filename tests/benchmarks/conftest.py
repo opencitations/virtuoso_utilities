@@ -13,7 +13,7 @@ FIXED_QUERY_COUNT = 1000
 
 OUTPUT_DIR = Path("benchmark_results")
 
-SPARQL_ENDPOINT = "http://localhost:18890/sparql"
+SPARQL_ENDPOINT = "http://localhost:8790/sparql"
 DATACITE = "http://purl.org/spar/datacite/"
 LITERAL_REIFICATION = "http://www.essepuntato.it/2010/06/literalreification/"
 FABIO = "http://purl.org/spar/fabio/"
@@ -115,6 +115,15 @@ def build_vvi_query(venue_uri: str, volume: str, issue: str) -> str:
 
 def pytest_configure(config):
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def check_endpoint_available():
+    """Verify SPARQL endpoint is reachable before running benchmarks."""
+    try:
+        requests.get(SPARQL_ENDPOINT, timeout=5)
+    except requests.exceptions.ConnectionError:
+        pytest.fail(f"SPARQL endpoint not reachable: {SPARQL_ENDPOINT}")
 
 
 def pytest_sessionfinish(session, exitstatus):

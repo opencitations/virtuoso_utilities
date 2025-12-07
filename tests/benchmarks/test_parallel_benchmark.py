@@ -21,11 +21,8 @@ def run_fixed_queries(queries: list, num_workers: int) -> dict:
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         futures = {executor.submit(execute_query_in_process, q): i for i, q in enumerate(queries)}
         for future in as_completed(futures):
-            try:
-                result = future.result(timeout=QUERY_TIMEOUT)
-                results.append(result)
-            except Exception:
-                pass
+            result = future.result(timeout=QUERY_TIMEOUT)
+            results.append(result)
     return {"results": results}
 
 
