@@ -7,9 +7,9 @@ full-text index, which is used for optimal querying of RDF object values
 using the bif:contains function in SPARQL queries.
 """
 import argparse
+import shutil
 import subprocess
 import sys
-import shutil
 import time
 from typing import Tuple
 
@@ -36,7 +36,7 @@ def drop_fulltext_tables(args: argparse.Namespace) -> Tuple[bool, str, str]:
     print("Dropping existing full-text index tables...", file=sys.stderr)
     
     for sql_command in sql_commands:
-        success, stdout, stderr = run_isql_command(args, sql_command=sql_command, capture=True, ignore_errors=True)
+        success, stdout, stderr = run_isql_command(args, sql_command=sql_command, ignore_errors=True)
         
         # Don't fail if tables don't exist - this is expected on first run
         if not success and "does not exist" not in stderr.lower():
@@ -65,7 +65,7 @@ def recreate_fulltext_index(args: argparse.Namespace) -> Tuple[bool, str, str]:
     
     print("Recreating full-text index...", file=sys.stderr)
     
-    return run_isql_command(args, sql_command=sql_command, capture=True)
+    return run_isql_command(args, sql_command=sql_command)
 
 
 def enable_batch_update(args: argparse.Namespace) -> Tuple[bool, str, str]:
@@ -82,7 +82,7 @@ def enable_batch_update(args: argparse.Namespace) -> Tuple[bool, str, str]:
     
     print("Enabling batch update for full-text index...", file=sys.stderr)
     
-    return run_isql_command(args, sql_command=sql_command, capture=True)
+    return run_isql_command(args, sql_command=sql_command)
 
 
 def refill_fulltext_index(args: argparse.Namespace) -> Tuple[bool, str, str]:
@@ -99,7 +99,7 @@ def refill_fulltext_index(args: argparse.Namespace) -> Tuple[bool, str, str]:
     
     print("Refilling full-text index (this may take a while)...", file=sys.stderr)
     
-    return run_isql_command(args, sql_command=sql_command, capture=True)
+    return run_isql_command(args, sql_command=sql_command)
 
 
 def rebuild_fulltext_index(args: argparse.Namespace) -> bool:
@@ -199,7 +199,7 @@ def rebuild_fulltext_index(args: argparse.Namespace) -> bool:
             wait_time = 0
             while wait_time < max_wait:
                 try:
-                    success, _, _ = run_isql_command(args, sql_command="status();", capture=True, ignore_errors=True)
+                    success, _, _ = run_isql_command(args, sql_command="status();", ignore_errors=True)
                     
                     if success:
                         print("Container restarted and ready!", file=sys.stderr)

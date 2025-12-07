@@ -1,10 +1,11 @@
+import argparse
 import gzip
+import shutil
 import subprocess
 import time
 from pathlib import Path
 
 import pytest
-import shutil
 
 CONTAINER_NAME = "virtuoso-utilities-test"
 VIRTUOSO_IMAGE = "openlink/virtuoso-opensource-7:7.2.15"
@@ -192,5 +193,70 @@ def sample_nquads_files_recursive(test_data_dir, request):
         file2.unlink()
     if subdir.exists():
         subdir.rmdir()
+
+
+@pytest.fixture
+def dump_output_dir(test_data_dir, request):
+    """Create temporary directory for dump output."""
+    output_dir = test_data_dir / f"{request.node.name}_dump"
+    output_dir.mkdir(exist_ok=True)
+    yield output_dir
+    shutil.rmtree(output_dir, ignore_errors=True)
+
+
+@pytest.fixture
+def sample_nquads_with_text(test_data_dir, request):
+    """Create .nq.gz file with text content for fulltext search testing."""
+    test_name = request.node.name
+    file_path = test_data_dir / f"{test_name}_text.nq.gz"
+
+    nquads_data = """
+<http://example.org/doc1> <http://purl.org/dc/elements/1.1/title> "The quick brown fox jumps over the lazy dog" <http://example.org/textgraph> .
+<http://example.org/doc2> <http://purl.org/dc/elements/1.1/title> "A lazy cat sleeps on the mat" <http://example.org/textgraph> .
+<http://example.org/doc3> <http://purl.org/dc/elements/1.1/description> "Fox and dog are common animals" <http://example.org/textgraph> .
+""".strip()
+
+    with gzip.open(file_path, 'wt', encoding='utf-8') as f:
+        f.write(nquads_data)
+
+    yield file_path
+
+    if file_path.exists():
+        file_path.unlink()
+
+
+@pytest.fixture
+def dump_args(virtuoso_container, dump_output_dir):
+    """Create argparse.Namespace for dump_quadstore tests."""
+    container_output_dir = f"/database/test_data/{dump_output_dir.name}"
+    return argparse.Namespace(
+        host="localhost",
+        port=HOST_PORT,
+        user="dba",
+        password=DBA_PASSWORD,
+        docker_container=virtuoso_container,
+        docker_path="docker",
+        docker_isql_path="isql",
+        isql_path="isql",
+        output_dir=container_output_dir,
+        file_length_limit=100000000,
+        compression=True,
+    )
+
+
+@pytest.fixture
+def rebuild_args(virtuoso_container):
+    """Create argparse.Namespace for rebuild_fulltext_index tests."""
+    return argparse.Namespace(
+        host="localhost",
+        port=HOST_PORT,
+        user="dba",
+        password=DBA_PASSWORD,
+        docker_container=virtuoso_container,
+        docker_path="docker",
+        docker_isql_path="isql",
+        isql_path="isql",
+        restart_container=False,
+    )
 
 
