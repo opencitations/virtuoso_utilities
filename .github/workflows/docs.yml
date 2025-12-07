@@ -39,6 +39,9 @@ jobs:
         working-directory: docs
         run: npm ci
 
+      - name: Copy benchmark results
+        run: cp -f benchmark_results/benchmark_results.png docs/public/ || true
+
       - name: Build documentation
         working-directory: docs
         run: npm run build
