@@ -512,7 +512,7 @@ wheels = [
 
 [[package]]
 name = "virtuoso-utilities"
-version = "1.8.1"
+version = "1.8.2"
 source = { editable = "." }
 dependencies = [
     { name = "psutil" },

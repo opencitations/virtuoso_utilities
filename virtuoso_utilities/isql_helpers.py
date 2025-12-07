@@ -37,7 +37,7 @@ def run_isql_command(
     args: argparse.Namespace,
     sql_command: Union[str, None] = None,
     script_path: Union[str, None] = None,
-    ignore_errors: bool = False
+    ignore_errors: bool = False,
 ) -> tuple[bool, str, str]:
     """
     Executes a SQL command or script using the 'isql' utility, either directly
@@ -166,14 +166,6 @@ def run_isql_command(
                          print(f"Check shell environment if using local script execution.", file=sys.stderr)
                 return False, stdout, f"Executable or shell component not found: {missing_cmd}"
 
-            # Handle other ISQL/execution errors
-            print(f"Error executing {command_description}.", file=sys.stderr)
-            print(f"Command: {command_to_run}", file=sys.stderr)
-            print(f"Return Code: {returncode}", file=sys.stderr)
-            if stderr:
-                print(f"Stderr: {stderr}", file=sys.stderr)
-            if stdout:
-                print(f"Stdout: {stdout}", file=sys.stderr)
             return ignore_errors, stdout, stderr
         return True, stdout, stderr
     except Exception as e:
