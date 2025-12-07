@@ -1,0 +1,1162 @@
+{
+    "machine_info": {
+        "node": "omarchy",
+        "processor": "",
+        "machine": "x86_64",
+        "python_compiler": "Clang 20.1.4 ",
+        "python_implementation": "CPython",
+        "python_implementation_version": "3.12.12",
+        "python_version": "3.12.12",
+        "python_build": [
+            "main",
+            "Oct 14 2025 21:25:31"
+        ],
+        "release": "6.17.8-arch1-1",
+        "system": "Linux",
+        "cpu": {
+            "python_version": "3.12.12.final.0 (64 bit)",
+            "cpuinfo_version": [
+                9,
+                0,
+                0
+            ],
+            "cpuinfo_version_string": "9.0.0",
+            "arch": "X86_64",
+            "bits": 64,
+            "count": 24,
+            "arch_string_raw": "x86_64",
+            "vendor_id_raw": "GenuineIntel",
+            "brand_raw": "12th Gen Intel(R) Core(TM) i9-12900K",
+            "hz_advertised_friendly": "1.2710 GHz",
+            "hz_actual_friendly": "1.2710 GHz",
+            "hz_advertised": [
+                1270979000,
+                0
+            ],
+            "hz_actual": [
+                1270979000,
+                0
+            ],
+            "stepping": 2,
+            "model": 151,
+            "family": 6,
+            "flags": [
+                "3dnowprefetch",
+                "abm",
+                "acpi",
+                "adx",
+                "aes",
+                "aperfmperf",
+                "apic",
+                "arat",
+                "arch_capabilities",
+                "arch_lbr",
+                "arch_perfmon",
+                "art",
+                "avx",
+                "avx2",
+                "avx_vnni",
+                "bmi1",
+                "bmi2",
+                "bts",
+                "clflush",
+                "clflushopt",
+                "clwb",
+                "cmov",
+                "constant_tsc",
+                "cpuid",
+                "cpuid_fault",
+                "cx16",
+                "cx8",
+                "de",
+                "ds_cpl",
+                "dtes64",
+                "dtherm",
+                "dts",
+                "epb",
+                "ept",
+                "ept_ad",
+                "erms",
+                "est",
+                "f16c",
+                "flexpriority",
+                "flush_l1d",
+                "fma",
+                "fpu",
+                "fsgsbase",
+                "fsrm",
+                "fxsr",
+                "gfni",
+                "hfi",
+                "ht",
+                "hwp",
+                "hwp_act_window",
+                "hwp_epp",
+                "hwp_notify",
+                "hwp_pkg_req",
+                "ibpb",
+                "ibrs",
+                "ibrs_enhanced",
+                "ibt",
+                "ida",
+                "intel_pt",
+                "invpcid",
+                "lahf_lm",
+                "lm",
+                "mca",
+                "mce",
+                "md_clear",
+                "mmx",
+                "monitor",
+                "movbe",
+                "movdir64b",
+                "movdiri",
+                "msr",
+                "mtrr",
+                "nonstop_tsc",
+                "nopl",
+                "nx",
+                "ospke",
+                "pae",
+                "pat",
+                "pbe",
+                "pcid",
+                "pclmulqdq",
+                "pconfig",
+                "pdcm",
+                "pdpe1gb",
+                "pebs",
+                "pge",
+                "pku",
+                "pln",
+                "pni",
+                "popcnt",
+                "pse",
+                "pse36",
+                "pts",
+                "rdpid",
+                "rdrand",
+                "rdseed",
+                "rdtscp",
+                "rep_good",
+                "sdbg",
+                "sep",
+                "serialize",
+                "sha_ni",
+                "smap",
+                "smep",
+                "smx",
+                "split_lock_detect",
+                "ss",
+                "ssbd",
+                "sse",
+                "sse2",
+                "sse4_1",
+                "sse4_2",
+                "ssse3",
+                "stibp",
+                "syscall",
+                "tm",
+                "tm2",
+                "tpr_shadow",
+                "tsc",
+                "tsc_adjust",
+                "tsc_deadline_timer",
+                "tsc_known_freq",
+                "umip",
+                "user_shstk",
+                "vaes",
+                "vme",
+                "vmx",
+                "vnmi",
+                "vpclmulqdq",
+                "vpid",
+                "waitpkg",
+                "x2apic",
+                "xgetbv1",
+                "xsave",
+                "xsavec",
+                "xsaveopt",
+                "xsaves",
+                "xtopology",
+                "xtpr"
+            ],
+            "l3_cache_size": 31457280,
+            "l2_cache_size": 14680064,
+            "l1_data_cache_size": 655360,
+            "l1_instruction_cache_size": 786432
+        }
+    },
+    "commit_info": {
+        "id": "e88c41f0144dd2f661e8c90cb29c7b219a0d4c62",
+        "time": "2025-12-07T12:23:56+01:00",
+        "author_time": "2025-12-07T12:23:56+01:00",
+        "dirty": true,
+        "project": "virtuoso_utilities",
+        "branch": "master"
+    },
+    "benchmarks": [
+        {
+            "group": "fixed_spo",
+            "name": "test_benchmark_fixed_spo[1]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_spo[1]",
+            "params": {
+                "num_workers": 1
+            },
+            "param": "1",
+            "extra_info": {
+                "num_workers": 1,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 1.2808522150007775,
+                "max": 1.4765775179985212,
+                "mean": 1.362534204799158,
+                "stddev": 0.07293088135932478,
+                "rounds": 5,
+                "median": 1.3525326089984446,
+                "iqr": 0.08639858825063129,
+                "q1": 1.3149951782488642,
+                "q3": 1.4013937664994955,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 1.2808522150007775,
+                "hd15iqr": 1.4765775179985212,
+                "ops": 0.733926529314105,
+                "total": 6.81267102399579,
+                "data": [
+                    1.4765775179985212,
+                    1.3525326089984446,
+                    1.2808522150007775,
+                    1.3763325159998203,
+                    1.3263761659982265
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_spo",
+            "name": "test_benchmark_fixed_spo[6]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_spo[6]",
+            "params": {
+                "num_workers": 6
+            },
+            "param": "6",
+            "extra_info": {
+                "num_workers": 6,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.3093332550015475,
+                "max": 0.3415981050020491,
+                "mean": 0.32502268180032845,
+                "stddev": 0.013125323109038255,
+                "rounds": 5,
+                "median": 0.32583246899957885,
+                "iqr": 0.021735980999437743,
+                "q1": 0.3136295220001557,
+                "q3": 0.33536550299959345,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 0.3093332550015475,
+                "hd15iqr": 0.3415981050020491,
+                "ops": 3.076708352970674,
+                "total": 1.6251134090016421,
+                "data": [
+                    0.31506161099969177,
+                    0.3415981050020491,
+                    0.3332879689987749,
+                    0.3093332550015475,
+                    0.32583246899957885
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_spo",
+            "name": "test_benchmark_fixed_spo[12]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_spo[12]",
+            "params": {
+                "num_workers": 12
+            },
+            "param": "12",
+            "extra_info": {
+                "num_workers": 12,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.1921537249982066,
+                "max": 0.2441367050014378,
+                "mean": 0.22390332979994126,
+                "stddev": 0.02113378888000175,
+                "rounds": 5,
+                "median": 0.2342650919999869,
+                "iqr": 0.030134147248645604,
+                "q1": 0.2078296527506609,
+                "q3": 0.2379637999993065,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.1921537249982066,
+                "hd15iqr": 0.2441367050014378,
+                "ops": 4.466213168395061,
+                "total": 1.1195166489997064,
+                "data": [
+                    0.1921537249982066,
+                    0.23590616499859607,
+                    0.2342650919999869,
+                    0.2441367050014378,
+                    0.213054962001479
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_spo",
+            "name": "test_benchmark_fixed_spo[18]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_spo[18]",
+            "params": {
+                "num_workers": 18
+            },
+            "param": "18",
+            "extra_info": {
+                "num_workers": 18,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.1766853999979503,
+                "max": 0.24609523600156535,
+                "mean": 0.20642597599944565,
+                "stddev": 0.03062551193136446,
+                "rounds": 5,
+                "median": 0.1989896079976461,
+                "iqr": 0.054628749003313715,
+                "q1": 0.17941806849830755,
+                "q3": 0.23404681750162126,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.1766853999979503,
+                "hd15iqr": 0.24609523600156535,
+                "ops": 4.844351565534977,
+                "total": 1.0321298799972283,
+                "data": [
+                    0.1766853999979503,
+                    0.2300306780016399,
+                    0.1989896079976461,
+                    0.18032895799842663,
+                    0.24609523600156535
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_spo",
+            "name": "test_benchmark_fixed_spo[24]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_spo[24]",
+            "params": {
+                "num_workers": 24
+            },
+            "param": "24",
+            "extra_info": {
+                "num_workers": 24,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.19846071700158063,
+                "max": 0.30215317900001537,
+                "mean": 0.23104770599966287,
+                "stddev": 0.04384306236097159,
+                "rounds": 5,
+                "median": 0.21050132399977883,
+                "iqr": 0.05925054149793141,
+                "q1": 0.1994977075000861,
+                "q3": 0.2587482489980175,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.19846071700158063,
+                "hd15iqr": 0.30215317900001537,
+                "ops": 4.328110489880644,
+                "total": 1.1552385299983143,
+                "data": [
+                    0.19984337099958793,
+                    0.24427993899735156,
+                    0.21050132399977883,
+                    0.30215317900001537,
+                    0.19846071700158063
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_doi",
+            "name": "test_benchmark_fixed_doi[1]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_doi[1]",
+            "params": {
+                "num_workers": 1
+            },
+            "param": "1",
+            "extra_info": {
+                "num_workers": 1,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 1.582507548002468,
+                "max": 1.7747982620021503,
+                "mean": 1.7074360512007842,
+                "stddev": 0.07935174213024376,
+                "rounds": 5,
+                "median": 1.724724828000035,
+                "iqr": 0.11458170950118074,
+                "q1": 1.6580534782497125,
+                "q3": 1.7726351877508932,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 1.582507548002468,
+                "hd15iqr": 1.7747982620021503,
+                "ops": 0.5856734718098124,
+                "total": 8.537180256003921,
+                "data": [
+                    1.7719141630004742,
+                    1.7747982620021503,
+                    1.582507548002468,
+                    1.724724828000035,
+                    1.683235454998794
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_doi",
+            "name": "test_benchmark_fixed_doi[6]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_doi[6]",
+            "params": {
+                "num_workers": 6
+            },
+            "param": "6",
+            "extra_info": {
+                "num_workers": 6,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.3658991260017501,
+                "max": 0.4240555680007674,
+                "mean": 0.3856420596013777,
+                "stddev": 0.02424468684549532,
+                "rounds": 5,
+                "median": 0.3748860980012978,
+                "iqr": 0.03406295299919293,
+                "q1": 0.36797642500187067,
+                "q3": 0.4020393780010636,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.3658991260017501,
+                "hd15iqr": 0.4240555680007674,
+                "ops": 2.593078153958774,
+                "total": 1.9282102980068885,
+                "data": [
+                    0.3748860980012978,
+                    0.36866885800191085,
+                    0.3658991260017501,
+                    0.39470064800116234,
+                    0.4240555680007674
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_doi",
+            "name": "test_benchmark_fixed_doi[12]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_doi[12]",
+            "params": {
+                "num_workers": 12
+            },
+            "param": "12",
+            "extra_info": {
+                "num_workers": 12,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.22222375499768532,
+                "max": 0.2804262319987174,
+                "mean": 0.24411339839934953,
+                "stddev": 0.024810074902794972,
+                "rounds": 5,
+                "median": 0.23375622299863608,
+                "iqr": 0.039399140750902006,
+                "q1": 0.22469197124974016,
+                "q3": 0.26409111200064217,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.22222375499768532,
+                "hd15iqr": 0.2804262319987174,
+                "ops": 4.096456837506649,
+                "total": 1.2205669919967477,
+                "data": [
+                    0.22222375499768532,
+                    0.2255147100004251,
+                    0.25864607200128376,
+                    0.2804262319987174,
+                    0.23375622299863608
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_doi",
+            "name": "test_benchmark_fixed_doi[18]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_doi[18]",
+            "params": {
+                "num_workers": 18
+            },
+            "param": "18",
+            "extra_info": {
+                "num_workers": 18,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.21576815899970825,
+                "max": 0.2834339170003659,
+                "mean": 0.26254435099981493,
+                "stddev": 0.027897842972319294,
+                "rounds": 5,
+                "median": 0.27012356399791315,
+                "iqr": 0.03414187774978927,
+                "q1": 0.24910286375052237,
+                "q3": 0.28324474150031165,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.21576815899970825,
+                "hd15iqr": 0.2834339170003659,
+                "ops": 3.8088802756251456,
+                "total": 1.3127217549990746,
+                "data": [
+                    0.26021443200079375,
+                    0.21576815899970825,
+                    0.27012356399791315,
+                    0.2834339170003659,
+                    0.28318168300029356
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_doi",
+            "name": "test_benchmark_fixed_doi[24]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_doi[24]",
+            "params": {
+                "num_workers": 24
+            },
+            "param": "24",
+            "extra_info": {
+                "num_workers": 24,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.21012241200151038,
+                "max": 0.25192355300168856,
+                "mean": 0.22791534319985657,
+                "stddev": 0.02157501196942338,
+                "rounds": 5,
+                "median": 0.21523808499841834,
+                "iqr": 0.040212163247815624,
+                "q1": 0.21100941375061666,
+                "q3": 0.2512215769984323,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 0.21012241200151038,
+                "hd15iqr": 0.25192355300168856,
+                "ops": 4.387594033645688,
+                "total": 1.139576715999283,
+                "data": [
+                    0.21130508100031875,
+                    0.21012241200151038,
+                    0.25098758499734686,
+                    0.25192355300168856,
+                    0.21523808499841834
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_vvi",
+            "name": "test_benchmark_fixed_vvi[1]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_vvi[1]",
+            "params": {
+                "num_workers": 1
+            },
+            "param": "1",
+            "extra_info": {
+                "num_workers": 1,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 6.677130373002001,
+                "max": 7.752818950997607,
+                "mean": 7.196163335000165,
+                "stddev": 0.41970644396434903,
+                "rounds": 5,
+                "median": 7.060516044999531,
+                "iqr": 0.6079166754989274,
+                "q1": 6.933667067501119,
+                "q3": 7.5415837430000465,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 6.677130373002001,
+                "hd15iqr": 7.752818950997607,
+                "ops": 0.13896293808900562,
+                "total": 35.980816675000824,
+                "data": [
+                    7.47117200700086,
+                    7.752818950997607,
+                    7.060516044999531,
+                    6.677130373002001,
+                    7.019179299000825
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_vvi",
+            "name": "test_benchmark_fixed_vvi[6]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_vvi[6]",
+            "params": {
+                "num_workers": 6
+            },
+            "param": "6",
+            "extra_info": {
+                "num_workers": 6,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 1.2560585489991354,
+                "max": 1.2943654539994895,
+                "mean": 1.2704744450005818,
+                "stddev": 0.014290635656083244,
+                "rounds": 5,
+                "median": 1.2673908720025793,
+                "iqr": 0.012642820749533712,
+                "q1": 1.2629405962507008,
+                "q3": 1.2755834170002345,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 1.2560585489991354,
+                "hd15iqr": 1.2943654539994895,
+                "ops": 0.7871075281640489,
+                "total": 6.3523722250029095,
+                "data": [
+                    1.2943654539994895,
+                    1.2652346120012226,
+                    1.2673908720025793,
+                    1.2693227380004828,
+                    1.2560585489991354
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_vvi",
+            "name": "test_benchmark_fixed_vvi[12]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_vvi[12]",
+            "params": {
+                "num_workers": 12
+            },
+            "param": "12",
+            "extra_info": {
+                "num_workers": 12,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.7552245590013626,
+                "max": 0.7845392730014282,
+                "mean": 0.764301479000278,
+                "stddev": 0.01157069978722287,
+                "rounds": 5,
+                "median": 0.7606944639992435,
+                "iqr": 0.00883789075214736,
+                "q1": 0.7584449457490336,
+                "q3": 0.767282836501181,
+                "iqr_outliers": 1,
+                "stddev_outliers": 1,
+                "outliers": "1;1",
+                "ld15iqr": 0.7552245590013626,
+                "hd15iqr": 0.7845392730014282,
+                "ops": 1.308384227265948,
+                "total": 3.8215073950013903,
+                "data": [
+                    0.7606944639992435,
+                    0.7845392730014282,
+                    0.7615306910010986,
+                    0.7595184079982573,
+                    0.7552245590013626
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_vvi",
+            "name": "test_benchmark_fixed_vvi[18]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_vvi[18]",
+            "params": {
+                "num_workers": 18
+            },
+            "param": "18",
+            "extra_info": {
+                "num_workers": 18,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.6331473280006321,
+                "max": 0.6566756120009813,
+                "mean": 0.6445354688010412,
+                "stddev": 0.008731846758125895,
+                "rounds": 5,
+                "median": 0.6426541470027587,
+                "iqr": 0.011048989751543559,
+                "q1": 0.6395284689997425,
+                "q3": 0.650577458751286,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 0.6331473280006321,
+                "hd15iqr": 0.6566756120009813,
+                "ops": 1.5515049960868572,
+                "total": 3.2226773440052057,
+                "data": [
+                    0.6416555159994459,
+                    0.6331473280006321,
+                    0.6426541470027587,
+                    0.6566756120009813,
+                    0.6485447410013876
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_vvi",
+            "name": "test_benchmark_fixed_vvi[24]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_vvi[24]",
+            "params": {
+                "num_workers": 24
+            },
+            "param": "24",
+            "extra_info": {
+                "num_workers": 24,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.6455884720016911,
+                "max": 0.6712884430016857,
+                "mean": 0.6629717362004157,
+                "stddev": 0.010799436030788968,
+                "rounds": 5,
+                "median": 0.6676152069994714,
+                "iqr": 0.014898473998073314,
+                "q1": 0.6560478370010969,
+                "q3": 0.6709463109991702,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.6455884720016911,
+                "hd15iqr": 0.6712884430016857,
+                "ops": 1.5083599275757071,
+                "total": 3.314858681002079,
+                "data": [
+                    0.6712884430016857,
+                    0.6708322669983318,
+                    0.6676152069994714,
+                    0.6595342920008989,
+                    0.6455884720016911
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_mixed",
+            "name": "test_benchmark_fixed_mixed[1]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_mixed[1]",
+            "params": {
+                "num_workers": 1
+            },
+            "param": "1",
+            "extra_info": {
+                "num_workers": 1,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 3.0156591570012097,
+                "max": 3.890309373000491,
+                "mean": 3.6107985129994633,
+                "stddev": 0.34401980162389323,
+                "rounds": 5,
+                "median": 3.7116152339986,
+                "iqr": 0.3126089152519853,
+                "q1": 3.4955949089981004,
+                "q3": 3.8082038242500857,
+                "iqr_outliers": 1,
+                "stddev_outliers": 1,
+                "outliers": "1;1",
+                "ld15iqr": 3.655573492997064,
+                "hd15iqr": 3.890309373000491,
+                "ops": 0.27694705101927924,
+                "total": 18.053992564997316,
+                "data": [
+                    3.0156591570012097,
+                    3.655573492997064,
+                    3.890309373000491,
+                    3.7116152339986,
+                    3.7808353079999506
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_mixed",
+            "name": "test_benchmark_fixed_mixed[6]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_mixed[6]",
+            "params": {
+                "num_workers": 6
+            },
+            "param": "6",
+            "extra_info": {
+                "num_workers": 6,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.6712213549981243,
+                "max": 0.7995881390015711,
+                "mean": 0.7689557016004983,
+                "stddev": 0.05489142771527295,
+                "rounds": 5,
+                "median": 0.789756350000971,
+                "iqr": 0.04012449150013708,
+                "q1": 0.7578686900005778,
+                "q3": 0.7979931815007149,
+                "iqr_outliers": 1,
+                "stddev_outliers": 1,
+                "outliers": "1;1",
+                "ld15iqr": 0.7867511350013956,
+                "hd15iqr": 0.7995881390015711,
+                "ops": 1.300465030584477,
+                "total": 3.8447785080024914,
+                "data": [
+                    0.7867511350013956,
+                    0.789756350000971,
+                    0.7995881390015711,
+                    0.7974615290004294,
+                    0.6712213549981243
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_mixed",
+            "name": "test_benchmark_fixed_mixed[12]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_mixed[12]",
+            "params": {
+                "num_workers": 12
+            },
+            "param": "12",
+            "extra_info": {
+                "num_workers": 12,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.4160957030035206,
+                "max": 0.5216134570000577,
+                "mean": 0.4758908554016671,
+                "stddev": 0.04684224816425074,
+                "rounds": 5,
+                "median": 0.48660241500328993,
+                "iqr": 0.08438099449722358,
+                "q1": 0.43320166100238566,
+                "q3": 0.5175826554996092,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.4160957030035206,
+                "hd15iqr": 0.5216134570000577,
+                "ops": 2.1013221595862945,
+                "total": 2.3794542770083353,
+                "data": [
+                    0.4160957030035206,
+                    0.43890364700200735,
+                    0.5162390549994598,
+                    0.48660241500328993,
+                    0.5216134570000577
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_mixed",
+            "name": "test_benchmark_fixed_mixed[18]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_mixed[18]",
+            "params": {
+                "num_workers": 18
+            },
+            "param": "18",
+            "extra_info": {
+                "num_workers": 18,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.36030806900089374,
+                "max": 0.4453470130029018,
+                "mean": 0.41511412040126744,
+                "stddev": 0.034990678103839296,
+                "rounds": 5,
+                "median": 0.4321041420007532,
+                "iqr": 0.048554921001596085,
+                "q1": 0.39060869150034705,
+                "q3": 0.43916361250194313,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.36030806900089374,
+                "hd15iqr": 0.4453470130029018,
+                "ops": 2.4089761124804823,
+                "total": 2.075570602006337,
+                "data": [
+                    0.36030806900089374,
+                    0.4321041420007532,
+                    0.4453470130029018,
+                    0.4007088990001648,
+                    0.4371024790016236
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": "fixed_mixed",
+            "name": "test_benchmark_fixed_mixed[24]",
+            "fullname": "tests/benchmarks/test_parallel_benchmark.py::test_benchmark_fixed_mixed[24]",
+            "params": {
+                "num_workers": 24
+            },
+            "param": "24",
+            "extra_info": {
+                "num_workers": 24,
+                "total_queries": 1000,
+                "success_count": 1000
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.37196655799925793,
+                "max": 0.41190836199893965,
+                "mean": 0.39196979160042245,
+                "stddev": 0.017226788200249456,
+                "rounds": 5,
+                "median": 0.39127732900306,
+                "iqr": 0.030894365746462427,
+                "q1": 0.376798448001864,
+                "q3": 0.40769281374832644,
+                "iqr_outliers": 0,
+                "stddev_outliers": 2,
+                "outliers": "2;0",
+                "ld15iqr": 0.37196655799925793,
+                "hd15iqr": 0.41190836199893965,
+                "ops": 2.55121701067058,
+                "total": 1.9598489580021123,
+                "data": [
+                    0.41190836199893965,
+                    0.37196655799925793,
+                    0.39127732900306,
+                    0.40628763099812204,
+                    0.3784090780027327
+                ],
+                "iterations": 1
+            }
+        }
+    ],
+    "datetime": "2025-12-07T16:10:52.875665+00:00",
+    "version": "5.2.3"
+}

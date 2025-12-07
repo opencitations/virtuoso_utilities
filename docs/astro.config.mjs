@@ -31,6 +31,12 @@ export default defineConfig({
 						{ label: 'Full-text index rebuilder', slug: 'utilities/rebuild-index' },
 					],
 				},
+				{
+					label: 'Testing',
+					items: [
+						{ label: 'Benchmarks', slug: 'benchmarks' },
+					],
+				},
 			],
 			editLink: {
 				baseUrl: 'https://github.com/opencitations/virtuoso_utilities/edit/master/docs/',
