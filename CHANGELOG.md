@@ -1,3 +1,10 @@
+## [1.8.3](https://github.com/opencitations/virtuoso_utilities/compare/v1.8.2...v1.8.3) (2025-12-07)
+
+
+### Bug Fixes
+
+* **isql_helpers:** remove verbose error prints from run_isql_command ([55f205f](https://github.com/opencitations/virtuoso_utilities/commit/55f205f6888b8f711368174a1ea382201fa5644d))
+
 ## [1.8.2](https://github.com/opencitations/virtuoso_utilities/compare/v1.8.1...v1.8.2) (2025-12-05)
 
 
