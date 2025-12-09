@@ -25,7 +25,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--benchmark-json=.benchmarks/baseline.json"
+addopts = "--ignore=tests/benchmarks --benchmark-json=.benchmarks/baseline.json"
 
 [tool.hatch.build.targets.wheel]
 packages = ["virtuoso_utilities"]
