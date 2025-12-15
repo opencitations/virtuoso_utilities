@@ -1,3 +1,10 @@
+## [1.9.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.9.0...v1.9.1) (2025-12-15)
+
+
+### Bug Fixes
+
+* write all VIRT parameters to virtuoso.ini for redundancy [release] ([739a625](https://github.com/opencitations/virtuoso_utilities/commit/739a625faa55d330219afc656031c0e5ba5ac8a0))
+
 # [1.9.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.8.3...v1.9.0) (2025-12-15)
 
 
