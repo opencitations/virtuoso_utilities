@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.9.1...v1.10.0) (2025-12-15)
+
+
+### Features
+
+* add ThreadCleanupInterval and ResourcesCleanupInterval parameters [release] ([36c40ba](https://github.com/opencitations/virtuoso_utilities/commit/36c40ba3174e1b64ab2e77e48a151ee92462364b))
+
 ## [1.9.1](https://github.com/opencitations/virtuoso_utilities/compare/v1.9.0...v1.9.1) (2025-12-15)
 
 
