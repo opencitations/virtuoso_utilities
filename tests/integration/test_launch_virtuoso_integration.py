@@ -546,7 +546,7 @@ class TestMaxQueryMemCalculation:
 
 
 class TestVectorSizeSettings:
-    """Tests for AdjustVectorSize and MaxVectorSize settings."""
+    """Tests for AdjustVectorSize, VectorSize, and CheckpointInterval settings."""
 
     def _create_args(self, **kwargs):
         """Create argparse.Namespace with default values."""
@@ -574,19 +574,26 @@ class TestVectorSizeSettings:
         defaults.update(kwargs)
         return argparse.Namespace(**defaults)
 
-    def test_adjust_vector_size_enabled(self, temp_data_dir):
-        """Verify AdjustVectorSize is set to 1."""
+    def test_adjust_vector_size_disabled(self, temp_data_dir):
+        """Verify AdjustVectorSize is set to 0."""
         args = self._create_args(data_dir=str(temp_data_dir))
         cmd, _ = build_docker_run_command(args)
         cmd_str = " ".join(cmd)
-        assert "VIRT_Parameters_AdjustVectorSize=1" in cmd_str
+        assert "VIRT_Parameters_AdjustVectorSize=0" in cmd_str
 
-    def test_max_vector_size_default(self, temp_data_dir):
-        """Verify MaxVectorSize is set to 1000000."""
+    def test_vector_size_default(self, temp_data_dir):
+        """Verify VectorSize is set to 1000."""
         args = self._create_args(data_dir=str(temp_data_dir))
         cmd, _ = build_docker_run_command(args)
         cmd_str = " ".join(cmd)
-        assert "VIRT_Parameters_MaxVectorSize=1000000" in cmd_str
+        assert "VIRT_Parameters_VectorSize=1000" in cmd_str
+
+    def test_checkpoint_interval_default(self, temp_data_dir):
+        """Verify CheckpointInterval is set to 1."""
+        args = self._create_args(data_dir=str(temp_data_dir))
+        cmd, _ = build_docker_run_command(args)
+        cmd_str = " ".join(cmd)
+        assert "VIRT_Parameters_CheckpointInterval=1" in cmd_str
 
 
 class TestThreadingParameters:
