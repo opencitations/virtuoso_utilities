@@ -1,3 +1,19 @@
+# [1.9.0](https://github.com/opencitations/virtuoso_utilities/compare/v1.8.3...v1.9.0) (2025-12-15)
+
+
+### Bug Fixes
+
+* **benchmarks:** fail tests when SPARQL endpoint is unreachable ([f6e8359](https://github.com/opencitations/virtuoso_utilities/commit/f6e83599ef0c79c3ef8323af858c8d41df052c05))
+* **docs:** add benchmark results image to documentation ([b2c8093](https://github.com/opencitations/virtuoso_utilities/commit/b2c80939af2526c806fc33adaba4bef78c484e76))
+* prevent lock contention with AdjustVectorSize=0 and frequent checkpoints [release] ([b5fe651](https://github.com/opencitations/virtuoso_utilities/commit/b5fe65126de9793a8ef8e1ff59a9cc01ee2fc48d))
+* **tests:** exclude benchmarks from default test run ([46ac637](https://github.com/opencitations/virtuoso_utilities/commit/46ac6372dc77982880c45e333faea5132cbab41f))
+* **tests:** update VectorSize tests to match new configuration [release] ([6fdeaac](https://github.com/opencitations/virtuoso_utilities/commit/6fdeaac130082c7b4be7eebb05cd70794572d608))
+
+
+### Features
+
+* **benchmarks:** add parallel SPARQL query benchmarks ([51de91a](https://github.com/opencitations/virtuoso_utilities/commit/51de91a71e88ea646c2f51af8ddeb03fcb2cb404))
+
 ## [1.8.3](https://github.com/opencitations/virtuoso_utilities/compare/v1.8.2...v1.8.3) (2025-12-07)
 
 
