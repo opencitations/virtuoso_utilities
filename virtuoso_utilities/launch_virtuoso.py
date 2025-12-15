@@ -192,6 +192,48 @@ def calculate_max_query_mem(memory, number_of_buffers):
     return None
 
 
+def get_virt_env_vars(memory, number_of_buffers, max_dirty_buffers, parallel_threads, estimated_db_size_gb=0.0, dirs_allowed=None):
+    env_vars = {}
+    env_vars["VIRT_Parameters_NumberOfBuffers"] = str(number_of_buffers)
+    env_vars["VIRT_Parameters_MaxDirtyBuffers"] = str(max_dirty_buffers)
+
+    threading = calculate_threading_config(parallel_threads)
+    env_vars["VIRT_Parameters_AsyncQueueMaxThreads"] = str(threading["async_queue_max_threads"])
+    env_vars["VIRT_Parameters_ThreadsPerQuery"] = str(threading["threads_per_query"])
+    env_vars["VIRT_Parameters_MaxClientConnections"] = str(threading["max_client_connections"])
+    env_vars["VIRT_HTTPServer_ServerThreads"] = str(threading["max_client_connections"])
+
+    env_vars["VIRT_Parameters_AdjustVectorSize"] = "0"
+    env_vars["VIRT_Parameters_VectorSize"] = "1000"
+    env_vars["VIRT_Parameters_CheckpointInterval"] = "1"
+
+    max_query_mem = calculate_max_query_mem(memory, number_of_buffers)
+    max_query_mem_str = max_query_mem if max_query_mem else "N/A"
+    if max_query_mem:
+        env_vars["VIRT_Parameters_MaxQueryMem"] = max_query_mem
+
+    env_vars["VIRT_Client_SQL_QUERY_TIMEOUT"] = "0"
+    env_vars["VIRT_Client_SQL_TXN_TIMEOUT"] = "0"
+
+    if estimated_db_size_gb > 0:
+        estimated_size_bytes = int(estimated_db_size_gb * 1024**3)
+        if estimated_size_bytes >= MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP:
+            max_checkpoint_remap = calculate_max_checkpoint_remap(estimated_size_bytes)
+            env_vars["VIRT_Database_MaxCheckpointRemap"] = str(max_checkpoint_remap)
+            env_vars["VIRT_TempDatabase_MaxCheckpointRemap"] = str(max_checkpoint_remap)
+            print(f"Info: Using estimated database size of {estimated_db_size_gb} GB to set MaxCheckpointRemap to {max_checkpoint_remap}")
+
+    if dirs_allowed:
+        env_vars["VIRT_Parameters_DirsAllowed"] = dirs_allowed
+
+    print(f"Info: Threading: AsyncQueueMaxThreads={threading['async_queue_max_threads']}, "
+          f"ThreadsPerQuery={threading['threads_per_query']}, "
+          f"MaxClientConnections={threading['max_client_connections']}")
+    print(f"Info: MaxQueryMem={max_query_mem_str}, AdjustVectorSize=0, VectorSize=1000, CheckpointInterval=1")
+
+    return env_vars
+
+
 def is_connection_error(stderr):
     stderr_lower = stderr.lower()
     return any(err in stderr_lower for err in CONNECTION_ERROR_PATTERNS)
@@ -221,25 +263,21 @@ def create_isql_args(dba_password, docker_container=None):
     )
 
 
-def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buffers: int = None, max_dirty_buffers: int = None, dirs_allowed: str = None, async_queue_max_threads: int = None, threads_per_query: int = None, max_client_connections: int = None):
-    """
-    Updates settings in the virtuoso.ini file:
-    - MaxCheckpointRemap: based on the actual size of the data directory
-    - NumberOfBuffers: if provided
-    - MaxDirtyBuffers: if provided
-    - DirsAllowed: if provided
-    - [Client] SQL_QUERY_TIMEOUT and SQL_TXN_TIMEOUT set to 0
-
-    Args:
-        ini_path: The full path to the virtuoso.ini file.
-        data_dir_path: The path to the data directory to measure for MaxCheckpointRemap.
-        number_of_buffers: Optional value for NumberOfBuffers setting.
-        max_dirty_buffers: Optional value for MaxDirtyBuffers setting.
-        dirs_allowed: Optional value for DirsAllowed setting (comma-separated string).
-        async_queue_max_threads: Optional value for AsyncQueueMaxThreads setting.
-        threads_per_query: Optional value for ThreadsPerQuery setting.
-        max_client_connections: Optional value for MaxClientConnections setting.
-    """
+def update_ini_memory_settings(
+    ini_path: str,
+    data_dir_path: str,
+    number_of_buffers: int = None,
+    max_dirty_buffers: int = None,
+    dirs_allowed: str = None,
+    async_queue_max_threads: int = None,
+    threads_per_query: int = None,
+    max_client_connections: int = None,
+    adjust_vector_size: int = None,
+    vector_size: int = None,
+    checkpoint_interval: int = None,
+    max_query_mem: str = None,
+    http_server_threads: int = None,
+):
     if not os.path.exists(ini_path):
         print(f"Info: virtuoso.ini not found at '{ini_path}'. Likely first run. Skipping settings update.")
         return
@@ -331,6 +369,48 @@ def update_ini_memory_settings(ini_path: str, data_dir_path: str, number_of_buff
             if current_val != new_val:
                 config.set('Parameters', 'MaxClientConnections', new_val)
                 print(f"Info: Updating [Parameters] MaxClientConnections from '{current_val}' to '{new_val}' in '{ini_path}'.")
+                made_changes = True
+
+        if adjust_vector_size is not None:
+            current_val = config.get('Parameters', 'AdjustVectorSize', fallback=None)
+            new_val = str(adjust_vector_size)
+            if current_val != new_val:
+                config.set('Parameters', 'AdjustVectorSize', new_val)
+                print(f"Info: Updating [Parameters] AdjustVectorSize from '{current_val}' to '{new_val}' in '{ini_path}'.")
+                made_changes = True
+
+        if vector_size is not None:
+            current_val = config.get('Parameters', 'VectorSize', fallback=None)
+            new_val = str(vector_size)
+            if current_val != new_val:
+                config.set('Parameters', 'VectorSize', new_val)
+                print(f"Info: Updating [Parameters] VectorSize from '{current_val}' to '{new_val}' in '{ini_path}'.")
+                made_changes = True
+
+        if checkpoint_interval is not None:
+            current_val = config.get('Parameters', 'CheckpointInterval', fallback=None)
+            new_val = str(checkpoint_interval)
+            if current_val != new_val:
+                config.set('Parameters', 'CheckpointInterval', new_val)
+                print(f"Info: Updating [Parameters] CheckpointInterval from '{current_val}' to '{new_val}' in '{ini_path}'.")
+                made_changes = True
+
+        if max_query_mem is not None:
+            current_val = config.get('Parameters', 'MaxQueryMem', fallback=None)
+            if current_val != max_query_mem:
+                config.set('Parameters', 'MaxQueryMem', max_query_mem)
+                print(f"Info: Updating [Parameters] MaxQueryMem from '{current_val}' to '{max_query_mem}' in '{ini_path}'.")
+                made_changes = True
+
+        if http_server_threads is not None:
+            if not config.has_section('HTTPServer'):
+                config.add_section('HTTPServer')
+                print(f"Info: Added [HTTPServer] section to '{ini_path}'.")
+            current_val = config.get('HTTPServer', 'ServerThreads', fallback=None)
+            new_val = str(http_server_threads)
+            if current_val != new_val:
+                config.set('HTTPServer', 'ServerThreads', new_val)
+                print(f"Info: Updating [HTTPServer] ServerThreads from '{current_val}' to '{new_val}' in '{ini_path}'.")
                 made_changes = True
 
         # Update MaxCheckpointRemap if database is large enough
@@ -703,42 +783,18 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
     env_vars = {
         "DBA_PASSWORD": args.dba_password,
         "VIRT_Parameters_ResultSetMaxRows": str(DEFAULT_MAX_ROWS),
-        "VIRT_Parameters_MaxDirtyBuffers": str(args.max_dirty_buffers),
-        "VIRT_Parameters_NumberOfBuffers": str(args.number_of_buffers),
-        "VIRT_Parameters_DirsAllowed": ",".join(paths_to_allow_in_container),
         "VIRT_SPARQL_DefaultQuery": "SELECT (COUNT(*) AS ?quadCount) WHERE { GRAPH ?g { ?s ?p ?o } }",
-        # Enforce client-side timeouts to 0
-        "VIRT_Client_SQL_QUERY_TIMEOUT": "0",
-        "VIRT_Client_SQL_TXN_TIMEOUT": "0",
     }
-    
-    # Set MaxCheckpointRemap environment variables if estimated size is provided
-    if args.estimated_db_size_gb > 0:
-        estimated_size_bytes = int(args.estimated_db_size_gb * 1024**3)
-        if estimated_size_bytes >= MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP:
-            max_checkpoint_remap = calculate_max_checkpoint_remap(estimated_size_bytes)
-            env_vars["VIRT_Database_MaxCheckpointRemap"] = str(max_checkpoint_remap)
-            env_vars["VIRT_TempDatabase_MaxCheckpointRemap"] = str(max_checkpoint_remap)
-            print(f"Info: Using estimated database size of {args.estimated_db_size_gb} GB to set MaxCheckpointRemap to {max_checkpoint_remap}")
 
-    max_query_mem_str = calculate_max_query_mem(args.memory, args.number_of_buffers)
-    if max_query_mem_str:
-        env_vars["VIRT_Parameters_MaxQueryMem"] = max_query_mem_str
-    else:
-        max_query_mem_str = "N/A"
-
-    env_vars["VIRT_Parameters_AdjustVectorSize"] = "0"
-    env_vars["VIRT_Parameters_VectorSize"] = "1000"
-    env_vars["VIRT_Parameters_CheckpointInterval"] = "1"
-
-    threading = calculate_threading_config(args.parallel_threads)
-    env_vars["VIRT_Parameters_AsyncQueueMaxThreads"] = str(threading["async_queue_max_threads"])
-    env_vars["VIRT_Parameters_ThreadsPerQuery"] = str(threading["threads_per_query"])
-    env_vars["VIRT_Parameters_MaxClientConnections"] = str(threading["max_client_connections"])
-    env_vars["VIRT_HTTPServer_ServerThreads"] = str(threading["max_client_connections"])
-
-    print(f"Info: Using {threading['threads_per_query']} CPU cores: AsyncQueueMaxThreads={threading['async_queue_max_threads']}, ThreadsPerQuery={threading['threads_per_query']}, MaxClientConnections={threading['max_client_connections']}")
-    print(f"Info: MaxQueryMem={max_query_mem_str}, AdjustVectorSize=0, VectorSize=1000, CheckpointInterval=1")
+    virt_env_vars = get_virt_env_vars(
+        memory=args.memory,
+        number_of_buffers=args.number_of_buffers,
+        max_dirty_buffers=args.max_dirty_buffers,
+        parallel_threads=args.parallel_threads,
+        estimated_db_size_gb=args.estimated_db_size_gb,
+        dirs_allowed=",".join(paths_to_allow_in_container),
+    )
+    env_vars.update(virt_env_vars)
 
     for key, value in env_vars.items():
         cmd.extend(["-e", f"{key}={value}"])
@@ -925,8 +981,23 @@ def launch_virtuoso(  # pragma: no cover
     docker_cmd, unique_paths_to_allow = build_docker_run_command(args)
     dirs_allowed_str = ",".join(unique_paths_to_allow) if unique_paths_to_allow else None
 
+    threading = calculate_threading_config(parallel_threads)
+    max_query_mem_value = calculate_max_query_mem(memory, number_of_buffers)
+
     update_ini_memory_settings(
-        ini_file_path, host_data_dir_abs, number_of_buffers, max_dirty_buffers, dirs_allowed=dirs_allowed_str
+        ini_path=ini_file_path,
+        data_dir_path=host_data_dir_abs,
+        number_of_buffers=number_of_buffers,
+        max_dirty_buffers=max_dirty_buffers,
+        dirs_allowed=dirs_allowed_str,
+        async_queue_max_threads=threading["async_queue_max_threads"],
+        threads_per_query=threading["threads_per_query"],
+        max_client_connections=threading["max_client_connections"],
+        adjust_vector_size=0,
+        vector_size=1000,
+        checkpoint_interval=1,
+        max_query_mem=max_query_mem_value,
+        http_server_threads=threading["max_client_connections"],
     )
 
     if check_container_exists(name):

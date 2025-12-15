@@ -30,13 +30,12 @@ import sys
 from virtuoso_utilities.launch_virtuoso import (
     DEFAULT_CONTAINER_DATA_DIR,
     DEFAULT_DIRS_ALLOWED,
-    MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP,
     bytes_to_docker_mem_str,
-    calculate_max_checkpoint_remap,
     calculate_max_query_mem,
     calculate_threading_config,
     get_default_memory,
     get_optimal_buffer_values,
+    get_virt_env_vars,
     grant_write_permissions,
     update_ini_memory_settings,
     wait_for_virtuoso_ready,
@@ -125,6 +124,9 @@ def configure_virtuoso(config):
         dirs.update(extra)
 
     threading = calculate_threading_config(config["parallel_threads"])
+    max_query_mem_value = calculate_max_query_mem(
+        config["memory"], config["number_of_buffers"]
+    )
     update_ini_memory_settings(
         ini_path=ini_path,
         data_dir_path=data_dir,
@@ -134,6 +136,11 @@ def configure_virtuoso(config):
         async_queue_max_threads=threading["async_queue_max_threads"],
         threads_per_query=threading["threads_per_query"],
         max_client_connections=threading["max_client_connections"],
+        adjust_vector_size=0,
+        vector_size=1000,
+        checkpoint_interval=1,
+        max_query_mem=max_query_mem_value,
+        http_server_threads=threading["max_client_connections"],
     )
 
     print(
@@ -143,48 +150,15 @@ def configure_virtuoso(config):
 
 
 def set_virt_env_vars(config):
-    os.environ["VIRT_Parameters_NumberOfBuffers"] = str(config["number_of_buffers"])
-    os.environ["VIRT_Parameters_MaxDirtyBuffers"] = str(config["max_dirty_buffers"])
-
-    threading = calculate_threading_config(config["parallel_threads"])
-    os.environ["VIRT_Parameters_AsyncQueueMaxThreads"] = str(
-        threading["async_queue_max_threads"]
+    env_vars = get_virt_env_vars(
+        memory=config["memory"],
+        number_of_buffers=config["number_of_buffers"],
+        max_dirty_buffers=config["max_dirty_buffers"],
+        parallel_threads=config["parallel_threads"],
+        estimated_db_size_gb=config["estimated_db_size_gb"],
     )
-    os.environ["VIRT_Parameters_ThreadsPerQuery"] = str(threading["threads_per_query"])
-    os.environ["VIRT_Parameters_MaxClientConnections"] = str(
-        threading["max_client_connections"]
-    )
-    os.environ["VIRT_HTTPServer_ServerThreads"] = str(
-        threading["max_client_connections"]
-    )
-
-    os.environ["VIRT_Parameters_AdjustVectorSize"] = "0"
-    os.environ["VIRT_Parameters_VectorSize"] = "1000"
-    os.environ["VIRT_Parameters_CheckpointInterval"] = "1"
-
-    max_query_mem = calculate_max_query_mem(
-        config["memory"], config["number_of_buffers"]
-    )
-    if max_query_mem:
-        os.environ["VIRT_Parameters_MaxQueryMem"] = max_query_mem
-
-    os.environ["VIRT_Client_SQL_QUERY_TIMEOUT"] = "0"
-    os.environ["VIRT_Client_SQL_TXN_TIMEOUT"] = "0"
-
-    if config["estimated_db_size_gb"] > 0:
-        estimated_size_bytes = int(config["estimated_db_size_gb"] * 1024**3)
-        if estimated_size_bytes >= MIN_DB_SIZE_BYTES_FOR_CHECKPOINT_REMAP:
-            max_checkpoint_remap = calculate_max_checkpoint_remap(estimated_size_bytes)
-            os.environ["VIRT_Database_MaxCheckpointRemap"] = str(max_checkpoint_remap)
-            os.environ["VIRT_TempDatabase_MaxCheckpointRemap"] = str(
-                max_checkpoint_remap
-            )
-
-    print(
-        f"Info: Threading config: AsyncQueueMaxThreads={threading['async_queue_max_threads']}, "
-        f"ThreadsPerQuery={threading['threads_per_query']}, "
-        f"MaxClientConnections={threading['max_client_connections']}"
-    )
+    for key, value in env_vars.items():
+        os.environ[key] = value
 
 
 def apply_write_permissions_async(dba_password):
