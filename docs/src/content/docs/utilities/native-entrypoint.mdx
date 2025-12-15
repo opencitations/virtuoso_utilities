@@ -109,6 +109,8 @@ The following parameters are set to prevent lock contention:
 - `AdjustVectorSize = 0` (prevents lock contention with parallel queries)
 - `VectorSize = 1000` (recommended default since Virtuoso 7.2.2)
 - `CheckpointInterval = 1` (checkpoint every minute to release memory/locks)
+- `ThreadCleanupInterval = 1` (release unused threads every minute)
+- `ResourcesCleanupInterval = 1` (release allocated resources every minute)
 
 ## Write permissions
 

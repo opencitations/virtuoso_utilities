@@ -206,6 +206,8 @@ def get_virt_env_vars(memory, number_of_buffers, max_dirty_buffers, parallel_thr
     env_vars["VIRT_Parameters_AdjustVectorSize"] = "0"
     env_vars["VIRT_Parameters_VectorSize"] = "1000"
     env_vars["VIRT_Parameters_CheckpointInterval"] = "1"
+    env_vars["VIRT_Parameters_ThreadCleanupInterval"] = "1"
+    env_vars["VIRT_Parameters_ResourcesCleanupInterval"] = "1"
 
     max_query_mem = calculate_max_query_mem(memory, number_of_buffers)
     max_query_mem_str = max_query_mem if max_query_mem else "N/A"
@@ -229,7 +231,7 @@ def get_virt_env_vars(memory, number_of_buffers, max_dirty_buffers, parallel_thr
     print(f"Info: Threading: AsyncQueueMaxThreads={threading['async_queue_max_threads']}, "
           f"ThreadsPerQuery={threading['threads_per_query']}, "
           f"MaxClientConnections={threading['max_client_connections']}")
-    print(f"Info: MaxQueryMem={max_query_mem_str}, AdjustVectorSize=0, VectorSize=1000, CheckpointInterval=1")
+    print(f"Info: MaxQueryMem={max_query_mem_str}, AdjustVectorSize=0, VectorSize=1000, CheckpointInterval=1, ThreadCleanupInterval=1, ResourcesCleanupInterval=1")
 
     return env_vars
 
@@ -277,6 +279,8 @@ def update_ini_memory_settings(
     checkpoint_interval: int = None,
     max_query_mem: str = None,
     http_server_threads: int = None,
+    thread_cleanup_interval: int = None,
+    resources_cleanup_interval: int = None,
 ):
     if not os.path.exists(ini_path):
         print(f"Info: virtuoso.ini not found at '{ini_path}'. Likely first run. Skipping settings update.")
@@ -411,6 +415,22 @@ def update_ini_memory_settings(
             if current_val != new_val:
                 config.set('HTTPServer', 'ServerThreads', new_val)
                 print(f"Info: Updating [HTTPServer] ServerThreads from '{current_val}' to '{new_val}' in '{ini_path}'.")
+                made_changes = True
+
+        if thread_cleanup_interval is not None:
+            current_val = config.get('Parameters', 'ThreadCleanupInterval', fallback=None)
+            new_val = str(thread_cleanup_interval)
+            if current_val != new_val:
+                config.set('Parameters', 'ThreadCleanupInterval', new_val)
+                print(f"Info: Updating [Parameters] ThreadCleanupInterval from '{current_val}' to '{new_val}' in '{ini_path}'.")
+                made_changes = True
+
+        if resources_cleanup_interval is not None:
+            current_val = config.get('Parameters', 'ResourcesCleanupInterval', fallback=None)
+            new_val = str(resources_cleanup_interval)
+            if current_val != new_val:
+                config.set('Parameters', 'ResourcesCleanupInterval', new_val)
+                print(f"Info: Updating [Parameters] ResourcesCleanupInterval from '{current_val}' to '{new_val}' in '{ini_path}'.")
                 made_changes = True
 
         # Update MaxCheckpointRemap if database is large enough
@@ -998,6 +1018,8 @@ def launch_virtuoso(  # pragma: no cover
         checkpoint_interval=1,
         max_query_mem=max_query_mem_value,
         http_server_threads=threading["max_client_connections"],
+        thread_cleanup_interval=1,
+        resources_cleanup_interval=1,
     )
 
     if check_container_exists(name):

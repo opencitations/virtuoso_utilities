@@ -163,6 +163,8 @@ The script configures vector sizing and checkpoint settings to prevent lock cont
 AdjustVectorSize = 0
 VectorSize = 1000
 CheckpointInterval = 1
+ThreadCleanupInterval = 1
+ResourcesCleanupInterval = 1
 ```
 
 ### Documentation sources
@@ -178,6 +180,10 @@ CheckpointInterval = 1
 - **VectorSize**: Fixed vector size of 1000, the [recommended default since Virtuoso 7.2.2](https://www.mail-archive.com/virtuoso-users@lists.sourceforge.net/msg07661.html).
 
 - **CheckpointInterval**: Set to `1` minute to ensure frequent checkpoints. According to [GitHub issue #411](https://github.com/openlink/virtuoso-opensource/issues/411), frequent checkpoints help release memory and prevent long-held locks during heavy operations.
+
+- **ThreadCleanupInterval**: Set to `1` minute to release unused threads from the thread pool. According to [official documentation](https://docs.openlinksw.com/virtuoso/ch-server/), this reduces memory consumption.
+
+- **ResourcesCleanupInterval**: Set to `1` minute to release allocated resources. The [default was changed to 1 in Virtuoso 7.2.12](https://sourceforge.net/projects/virtuoso/files/virtuoso/7.2.12/) for new installations.
 
 <Aside type="note" title="Virtuoso 7.0+">
 These parallelization settings only apply to Virtuoso 7.0 and later versions.

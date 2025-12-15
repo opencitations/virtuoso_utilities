@@ -141,6 +141,8 @@ def configure_virtuoso(config):
         checkpoint_interval=1,
         max_query_mem=max_query_mem_value,
         http_server_threads=threading["max_client_connections"],
+        thread_cleanup_interval=1,
+        resources_cleanup_interval=1,
     )
 
     print(
