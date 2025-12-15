@@ -727,8 +727,9 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
     else:
         max_query_mem_str = "N/A"
 
-    env_vars["VIRT_Parameters_AdjustVectorSize"] = "1"
-    env_vars["VIRT_Parameters_MaxVectorSize"] = "1000000"
+    env_vars["VIRT_Parameters_AdjustVectorSize"] = "0"
+    env_vars["VIRT_Parameters_VectorSize"] = "1000"
+    env_vars["VIRT_Parameters_CheckpointInterval"] = "1"
 
     threading = calculate_threading_config(args.parallel_threads)
     env_vars["VIRT_Parameters_AsyncQueueMaxThreads"] = str(threading["async_queue_max_threads"])
@@ -737,7 +738,7 @@ def build_docker_run_command(args: argparse.Namespace) -> Tuple[List[str], List[
     env_vars["VIRT_HTTPServer_ServerThreads"] = str(threading["max_client_connections"])
 
     print(f"Info: Using {threading['threads_per_query']} CPU cores: AsyncQueueMaxThreads={threading['async_queue_max_threads']}, ThreadsPerQuery={threading['threads_per_query']}, MaxClientConnections={threading['max_client_connections']}")
-    print(f"Info: MaxQueryMem={max_query_mem_str}, AdjustVectorSize=1, MaxVectorSize=1000000")
+    print(f"Info: MaxQueryMem={max_query_mem_str}, AdjustVectorSize=0, VectorSize=1000, CheckpointInterval=1")
 
     for key, value in env_vars.items():
         cmd.extend(["-e", f"{key}={value}"])

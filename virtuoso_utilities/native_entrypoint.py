@@ -158,8 +158,9 @@ def set_virt_env_vars(config):
         threading["max_client_connections"]
     )
 
-    os.environ["VIRT_Parameters_AdjustVectorSize"] = "1"
-    os.environ["VIRT_Parameters_MaxVectorSize"] = "1000000"
+    os.environ["VIRT_Parameters_AdjustVectorSize"] = "0"
+    os.environ["VIRT_Parameters_VectorSize"] = "1000"
+    os.environ["VIRT_Parameters_CheckpointInterval"] = "1"
 
     max_query_mem = calculate_max_query_mem(
         config["memory"], config["number_of_buffers"]

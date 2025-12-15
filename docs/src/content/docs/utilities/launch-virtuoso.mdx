@@ -155,13 +155,14 @@ MaxQueryMem = (EffectiveMemory - BufferMemory) * 0.8
 
 This ensures queries have dedicated memory separate from the buffer pool.
 
-### Adaptive vector sizing
+### Vector sizing and checkpoint configuration
 
-The script enables adaptive vector sizing for better performance on large queries:
+The script configures vector sizing and checkpoint settings to prevent lock contention:
 
 ```
-AdjustVectorSize = 1
-MaxVectorSize = 1000000
+AdjustVectorSize = 0
+VectorSize = 1000
+CheckpointInterval = 1
 ```
 
 ### Documentation sources
@@ -172,9 +173,11 @@ MaxVectorSize = 1000000
 
 - **MaxClientConnections**: According to [OpenLink Community](https://community.openlinksw.com/t/virtuoso-maxclientconnections-configuration-parameter/3828): *"sets the maximum number of threads that can be allocated for SQL Connectivity"*. Set to `CPU_cores * 2` to ensure it exceeds `AsyncQueueMaxThreads`.
 
-- **AdjustVectorSize**: According to [Configuration Parameters for Vectoring and Parallelization](https://docs.openlinksw.com/virtuoso/vexqrparlconfp/): *"Set AdjustVectorSize = 1 to enable this feature. The SQL execution engine will increase the vector size when it sees an index lookup that does not get good locality."* This can yield *"up to a 3x speed-up"* on large queries.
+- **AdjustVectorSize**: Set to `0` to prevent lock contention issues with parallel queries. This became the [recommended default in Virtuoso 7.2.2](https://www.mail-archive.com/virtuoso-users@lists.sourceforge.net/msg07661.html) following reports of "locks are held for a long time" errors.
 
-- **MaxVectorSize**: According to [Configuration Parameters for Vectoring and Parallelization](https://docs.openlinksw.com/virtuoso/vexqrparlconfp/): *"When AdjustVectorSize is on, this setting gives the maximum vector size. The default is 1,000,000 and the largest allowed value is about 3,500,000."*
+- **VectorSize**: Fixed vector size of 1000, the [recommended default since Virtuoso 7.2.2](https://www.mail-archive.com/virtuoso-users@lists.sourceforge.net/msg07661.html).
+
+- **CheckpointInterval**: Set to `1` minute to ensure frequent checkpoints. According to [GitHub issue #411](https://github.com/openlink/virtuoso-opensource/issues/411), frequent checkpoints help release memory and prevent long-held locks during heavy operations.
 
 <Aside type="note" title="Virtuoso 7.0+">
 These parallelization settings only apply to Virtuoso 7.0 and later versions.

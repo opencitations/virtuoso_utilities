@@ -196,8 +196,9 @@ class TestSetVirtEnvVars:
         }
         set_virt_env_vars(config)
 
-        assert os.environ["VIRT_Parameters_AdjustVectorSize"] == "1"
-        assert os.environ["VIRT_Parameters_MaxVectorSize"] == "1000000"
+        assert os.environ["VIRT_Parameters_AdjustVectorSize"] == "0"
+        assert os.environ["VIRT_Parameters_VectorSize"] == "1000"
+        assert os.environ["VIRT_Parameters_CheckpointInterval"] == "1"
 
     def test_client_timeouts(self, monkeypatch):
         """Test client timeout settings."""

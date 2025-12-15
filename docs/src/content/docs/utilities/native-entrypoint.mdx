@@ -102,6 +102,14 @@ Threading parameters are set as `VIRT_*` environment variables:
 - `MaxClientConnections = CPU_cores * 2`
 - `HTTPServer_ServerThreads = CPU_cores * 2`
 
+## Vector and checkpoint configuration
+
+The following parameters are set to prevent lock contention:
+
+- `AdjustVectorSize = 0` (prevents lock contention with parallel queries)
+- `VectorSize = 1000` (recommended default since Virtuoso 7.2.2)
+- `CheckpointInterval = 1` (checkpoint every minute to release memory/locks)
+
 ## Write permissions
 
 <Aside type="note">
