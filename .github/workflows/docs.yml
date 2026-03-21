@@ -30,10 +30,10 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "lts/*"
           cache: npm
@@ -46,20 +46,40 @@ jobs:
       - name: Copy benchmark results
         run: cp -f benchmark_results/benchmark_results.png docs/public/ || true
 
+      - name: Find latest successful test run
+        id: find-run
+        run: |
+          RUN_ID=$(gh run list --workflow "Tests" --branch master --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          echo "run-id=$RUN_ID" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Download coverage report
+        if: steps.find-run.outputs.run-id != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-report
+          path: docs/public/coverage
+          run-id: ${{ steps.find-run.outputs.run-id }}
+          github-token: ${{ github.token }}
+        continue-on-error: true
+
+      - name: Download coverage badge
+        if: steps.find-run.outputs.run-id != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-badge
+          path: docs/public/coverage
+          run-id: ${{ steps.find-run.outputs.run-id }}
+          github-token: ${{ github.token }}
+        continue-on-error: true
+
       - name: Build documentation
         working-directory: docs
         run: npm run build
 
-      - name: Download coverage artifact
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          workflow: test.yml
-          name: coverage-report
-          path: docs/dist/coverage
-          if_no_artifact_found: warn
-
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: docs/dist
 

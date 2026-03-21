@@ -13,9 +13,6 @@ on:
 permissions:
   contents: read
 
-env:
-  COVERAGE_REPORT_PATH: htmlcov
-
 jobs:
   test:
     name: Test on Python ${{ matrix.python-version }}
@@ -27,67 +24,43 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --group dev
+        run: uv sync --locked --group dev
 
       - name: Run tests with coverage
         run: |
-          uv run pytest -v --cov=virtuoso_utilities --cov-report=xml --cov-report=term
-          echo "=== Coverage Report ==="
+          uv run coverage run -m pytest -v
+          uv run coverage xml
           uv run coverage report
-          echo "COVERAGE=$(uv run coverage report | grep TOTAL | awk '{print $4}')" >> $GITHUB_ENV
 
       - name: Generate HTML coverage report
+        if: matrix.python-version == '3.12'
         run: uv run coverage html -d htmlcov
 
-      - name: Upload coverage artifact
-        if: matrix.python-version == '3.10' && github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v4
+      - name: Generate coverage badge
+        if: matrix.python-version == '3.12'
+        run: uv run genbadge coverage -i coverage.xml -o coverage-badge.svg
+
+      - name: Upload coverage report
+        if: matrix.python-version == '3.12' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
-          path: ${{ env.COVERAGE_REPORT_PATH }}
+          path: htmlcov
 
-      - name: Generate coverage badge
-        if: matrix.python-version == '3.10'
-        run: |
-          # Extract coverage percentage as a number
-          COVERAGE_NUM=$(echo ${{ env.COVERAGE }} | sed 's/%//')
-
-          # Determine color based on coverage
-          if (( $(echo "$COVERAGE_NUM >= 90" | bc -l) )); then
-            COLOR="green"
-          elif (( $(echo "$COVERAGE_NUM >= 75" | bc -l) )); then
-            COLOR="yellow"
-          elif (( $(echo "$COVERAGE_NUM >= 60" | bc -l) )); then
-            COLOR="orange"
-          else
-            COLOR="red"
-          fi
-
-          echo "BADGE_COLOR=$COLOR" >> $GITHUB_ENV
-
-      - name: Create badge
-        if: matrix.python-version == '3.10'
-        uses: RubbaBoy/BYOB@v1.3.0
+      - name: Upload coverage badge
+        if: matrix.python-version == '3.12' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v7
         with:
-          name: opencitations-virtuoso-utilities-coverage-${{ github.ref_name }}
-          label: "Coverage"
-          status: "${{ env.COVERAGE }}"
-          color: ${{ env.BADGE_COLOR }}
-          github_token: ${{ secrets.GIST_PAT }}
-          repository: arcangelo7/badges
-          actor: arcangelo7
-
-      - name: Test summary
-        if: always()
-        run: |
-          echo "## Test Results for Python ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
-          echo "Tests completed." >> $GITHUB_STEP_SUMMARY
+          name: coverage-badge
+          path: coverage-badge.svg
