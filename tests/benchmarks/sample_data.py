@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Arcangelo Massari <arcangelo.massari@unibo.it>
+#
+# SPDX-License-Identifier: ISC
+
 SAMPLE_DOIS = [
     "10.1111/j.1834-7819.1971.tb03413.x",
     "10.1111/j.1834-7819.1972.tb04979.x",

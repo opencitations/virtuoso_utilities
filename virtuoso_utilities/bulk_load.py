@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: 2025 Arcangelo Massari <arcangelo.massari@unibo.it>
+# SPDX-FileCopyrightText: 2025 eliarizzetto <elia.rizzetto@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
 # -*- coding: utf-8 -*-
 
 """
